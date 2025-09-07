@@ -702,7 +702,7 @@ static void normalize_letter_tokens(std::wstring& s){
 }
 
 
-std::wstring vox_transform(const std::wstring& in){
+std::wstring vox_process(const std::wstring& in, bool wrap_vox_tags){
     auto sents = split_sentences(in);
     std::wstring out;
     for (auto sent : sents){
@@ -731,7 +731,13 @@ std::wstring vox_transform(const std::wstring& in){
     out = std::regex_replace(out, std::wregex(LR"((\s*\\!br\s*){2,})"), L" \\!br ");
     out = std::regex_replace(out, std::wregex(LR"(\\!br\s*([,;:]))"), L"$1 \\!br");
 
-    if (!out.empty()) out = L"\\!wH1 " + out + L" \\!wH0 ";
+    if (!out.empty()) {
+        if (wrap_vox_tags) {
+            out = L"\\!wH1 " + out + L" \\!wH0 ";
+        } else {
+            out = out + L" ";
+        }
+    }
     return out;
 }
 

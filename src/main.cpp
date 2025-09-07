@@ -40,7 +40,7 @@ static Engine       g_eng;
 static LONG         g_inflight_local= 0;
 
 static bool g_vox_enabled = false;
-
+static bool g_vox_clean   = false; 
 
 // ------------------------------------------------------------------
 // Chunk queue
@@ -228,7 +228,7 @@ static void enqueue_incoming_text(const std::string& line){
     if (g_vox_enabled) {
         // VOX: transform then push as a single chunk (no extra splitting)
         std::wstring w = u8_to_w(line);
-        std::wstring wtag = vox_transform(w);
+        std::wstring wtag = vox_process(w,!g_vox_clean);
         log_vox_transform(line, wtag);     // <-- add this line
         if (!wtag.empty()) g_q.push_back({ wtag });
     } else {
@@ -298,6 +298,10 @@ static void parse_cmdline(){
         else if (a==L"--headless") g_headless=true;
         else if (a==L"--verbose") g_verbose=true;
         else if (a==L"--vox"){ g_vox_enabled = true; }
+        else if (a == L"--voxclean") {   // NEW
+            g_vox_enabled = true;        // enable VOX prosody
+            g_vox_clean   = true;         // but suppress \!wH1/\!wH0
+        }
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
         else if (a==L"--port" && i+1<argc) g_port = _wtoi(argv[++i]);
         else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
