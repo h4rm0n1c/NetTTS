@@ -1,0 +1,21 @@
+# Build artifacts / Windows / MinGW
+*.exe
+*.dll
+*.res
+*.o
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.idb
+*.a
+*.map
+*.stackdump
+# Logs & temps
+*.log
+*.tmp
+*.bak
+# Misc
+.DS_Store
+Thumbs.db
