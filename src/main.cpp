@@ -14,6 +14,9 @@
 #include "net_server.hpp"
 #include "util.hpp"   // u8_to_w()
 
+#include "gui.hpp"   // create_main_dialog(...)
+#include "help.hpp"  // usage_short(), show_help_and_exit(), print_help()
+
 #ifndef WM_APP
 #  define WM_APP 0x8000
 #endif
@@ -41,6 +44,9 @@ static LONG         g_inflight_local= 0;
 
 static bool g_vox_enabled = false;
 static bool g_vox_clean   = false; 
+
+static bool g_cli_gui   = false;  // --gui (modeless dialog on top of our hidden app window)
+static bool g_cli_help  = false;  // --help (print/show help then exit)
 
 // ------------------------------------------------------------------
 // Chunk queue
@@ -294,14 +300,11 @@ static void parse_cmdline(){
     if (!argv) return;
     for (int i=1;i<argc;i++){
         std::wstring a = argv[i];
-        if (a==L"--gui") g_show_window=true;
+        if (a==L"--gui") { g_cli_gui = true; } else if (a==L"--help" || a == L"-h" || a == L"/?") { g_cli_help = true; }
         else if (a==L"--headless") g_headless=true;
         else if (a==L"--verbose") g_verbose=true;
         else if (a==L"--vox"){ g_vox_enabled = true; }
-        else if (a == L"--voxclean") {   // NEW
-            g_vox_enabled = true;        // enable VOX prosody
-            g_vox_clean   = true;         // but suppress \!wH1/\!wH0
-        }
+        else if (a==L"--voxclean") { g_vox_enabled = true; g_vox_clean = true; }
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
         else if (a==L"--port" && i+1<argc) g_port = _wtoi(argv[++i]);
         else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
@@ -325,19 +328,29 @@ log_attach_console();
 // Honor --verbose (or --console) like before
 log_set_verbose(g_verbose);
 
+    
+    if (g_cli_help) {
+        show_help_and_exit(false);   // prints full help (and attaches a console if needed)
+        return 0;                    // (defensive; show_help_and_exit() already exits)
+    }
+
 
     // Window
     WNDCLASSEXW wc{sizeof(wc)};
-    wc.lpszClassName = L"NetTTS.CleanWnd";
+    wc.lpszClassName = L"NetTTS.EventHandler";
     wc.hInstance     = hInst;
     wc.lpfnWndProc   = WndProc;
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassExW(&wc);
 
-    g_hwnd = CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, L"NetTTS (clean)",
-                             WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 560, 480,
+    g_hwnd = CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, L"NetTTS Eventhandler",
+                             WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 200, 200,
                              nullptr, nullptr, hInst, nullptr);
-    ShowWindow(g_hwnd, g_show_window ? SW_SHOW : SW_HIDE);
+    ShowWindow(g_hwnd, SW_HIDE);
+
+    if (g_cli_gui) {
+        HWND hDlg = create_main_dialog(hInst, g_hwnd);
+    }
 
     if (!tts_init(g_eng, g_dev_index, g_to_file, g_to_file ? g_wavpath.c_str() : nullptr)){
         MessageBeep(MB_ICONERROR);

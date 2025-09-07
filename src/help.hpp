@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <windows.h>
+#include "log.hpp"
 
 void usage_short();
 void print_help();

@@ -16,3 +16,75 @@ BEGIN
         7, 7, 366, 230
     DEFPUSHBUTTON "OK", IDOK, 320, 240, 53, 14, WS_TABSTOP
 END
+
+// ---- Main GUI ----------------------------------------------------
+#ifndef IDD_MAIN
+#define IDD_MAIN         100
+#define IDC_EDIT_TEXT    2001
+#define IDC_BTN_SPEAK    2002
+#define IDC_BTN_HELP     2003
+
+#define IDC_DEV_LABEL    2100
+#define IDC_DEV_COMBO    2101
+#define IDC_BTN_APPLY    2102
+
+#define IDC_VOL_LABEL    2200
+#define IDC_VOL_SLIDER   2201
+#define IDC_VOL_VAL      2202
+#define IDC_RATE_LABEL   2210
+#define IDC_RATE_SLIDER  2211
+#define IDC_RATE_VAL     2212
+#define IDC_PITCH_LABEL  2220
+#define IDC_PITCH_SLIDER 2221
+#define IDC_PITCH_VAL    2222
+
+#define IDC_HOST_LABEL   2300
+#define IDC_EDIT_HOST    2301
+#define IDC_PORT_LABEL   2302
+#define IDC_EDIT_PORT    2303
+#define IDC_BTN_SERVER   2304
+#endif
+
+// A compact, clean layout. Font matches the Help dialog (“MS Shell Dlg”, 8).
+IDD_MAIN DIALOGEX 0, 0, 420, 300
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
+CAPTION "NetTTS"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    // Text box + Speak/Help
+    CONTROL "", IDC_EDIT_TEXT, "EDIT",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL | WS_TABSTOP,
+        7, 7, 406, 140
+    PUSHBUTTON "Speak", IDC_BTN_SPEAK, 7,   152, 50, 14, WS_TABSTOP
+    PUSHBUTTON "Help",  IDC_BTN_HELP,  62,  152, 50, 14, WS_TABSTOP
+    DEFPUSHBUTTON "Close", IDOK,       360, 152, 53, 14, WS_TABSTOP
+
+    // Audio device + Apply
+    LTEXT "Device:", IDC_DEV_LABEL, 7, 175, 35, 10
+    COMBOBOX IDC_DEV_COMBO, 45, 172, 255, 150,
+        CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON "Apply Audio", IDC_BTN_APPLY, 310, 172, 103, 14, WS_TABSTOP
+
+    // Attributes
+    LTEXT "Volume", IDC_VOL_LABEL,  7, 195, 35, 10
+    CONTROL "", IDC_VOL_SLIDER, "msctls_trackbar32",
+        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 45, 192, 255, 15
+    LTEXT "100%", IDC_VOL_VAL, 310, 195, 103, 10
+
+    LTEXT "Rate",   IDC_RATE_LABEL, 7, 215, 35, 10
+    CONTROL "", IDC_RATE_SLIDER, "msctls_trackbar32",
+        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 45, 212, 255, 15
+    LTEXT "1.00", IDC_RATE_VAL, 310, 215, 103, 10
+
+    LTEXT "Pitch",  IDC_PITCH_LABEL, 7, 235, 35, 10
+    CONTROL "", IDC_PITCH_SLIDER, "msctls_trackbar32",
+        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 45, 232, 255, 15
+    LTEXT "1.00", IDC_PITCH_VAL, 310, 235, 103, 10
+
+    // TCP server
+    LTEXT "Host:", IDC_HOST_LABEL,  7, 260, 25, 10
+    EDITTEXT IDC_EDIT_HOST, 35, 258, 120, 13, ES_AUTOHSCROLL
+    LTEXT "Port:", IDC_PORT_LABEL,  160, 260, 25, 10
+    EDITTEXT IDC_EDIT_PORT, 188, 258, 40, 13, ES_NUMBER | ES_AUTOHSCROLL
+    PUSHBUTTON "Start Server", IDC_BTN_SERVER, 240, 257, 173, 14, WS_TABSTOP
+END
