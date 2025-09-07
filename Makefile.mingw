@@ -1,20 +1,60 @@
 # Build with MinGW-w64 i686
-# Usage: make -f Makefile.mingw INC_DIR="C:/.../Microsoft Speech SDK/Include"
+# Usage:
+#   make -f Makefile.mingw bootstrap-sapi4       # (once) fetch speech.h locally
+#   make -f Makefile.mingw -j"$(nproc)"          # build -> ./build/nettts_gui.exe
 
-CXX=i686-w64-mingw32-g++
-RC=i686-w64-mingw32-windres
-CXXFLAGS=-O2 -s -DUNICODE -D_UNICODE -mwindows -municode
-INC=$(if $(INC_DIR),-I"$(INC_DIR)",)  # INC_DIR -> Microsoft Speech SDK Include
+CXX := i686-w64-mingw32-g++
+RC  := i686-w64-mingw32-windres
 
-LIBS=-static-libgcc -static-libstdc++ -lole32 -loleaut32 -lwinmm -lws2_32 -lcomctl32 -luuid
+# Default to local headers; override with INC_DIR="C:/.../Microsoft Speech SDK/Include"
+INC_DIR ?= third_party/include
+INC     := $(if $(INC_DIR),-I"$(INC_DIR)",)
 
-all: nettts_gui.exe
+CXXFLAGS ?= -O2 -s -DUNICODE -D_UNICODE -mwindows -municode
+# Optional extras:
+# CXXFLAGS += -Wall -Wextra -pipe
 
-nettts.res: nettts.rc
-	$(RC) nettts.rc -O coff -o $@
+LIBS := -static-libgcc -static-libstdc++ -lole32 -loleaut32 -lwinmm -lws2_32 -lcomctl32 -luuid
 
-nettts_gui.exe: src/main.cpp src/log.cpp src/util.cpp src/help.cpp src/gui.cpp src/tts_engine.cpp src/net_server.cpp src/sapi4_guids.cpp src/vox_parser.cpp nettts.res
-	$(CXX) $(CXXFLAGS) $(INC) $^ -o $@ $(LIBS)
+SRC_DIR   := src
+BUILD_DIR := build
+TARGET    := nettts_gui.exe
 
+SRCS := $(wildcard $(SRC_DIR)/*.cpp)
+OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRCS))
+RES  := $(BUILD_DIR)/nettts.res
+OUT  := $(BUILD_DIR)/$(TARGET)
+
+RCFLAGS := -I .
+
+.PHONY: all clean bootstrap-sapi4 print-inc run
+all: $(OUT)
+
+# Ensure build dir exists
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Compile each translation unit (parallel-friendly)
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INC) -c $< -o $@
+
+# Resource -> build/
+$(RES): nettts.rc | $(BUILD_DIR)
+	$(RC) $(RCFLAGS) $< -O coff -o $@
+
+# Link final exe -> build/
+$(OUT): $(OBJS) $(RES)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
+	@echo
+	@echo "Built: $(OUT)"
+
+# One-time local header fetch (git-ignored)
+bootstrap-sapi4:
+	./scripts/fetch_sapi4_headers.sh
+
+print-inc:
+	@echo $(INC_DIR)
+
+# Clean all build outputs under ./build
 clean:
-	rm -f nettts_gui.exe nettts.res
+	rm -rf $(BUILD_DIR)
