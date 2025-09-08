@@ -270,8 +270,8 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
         s_mainDlg = h;                // <- remember it
         if (parent) s_appWnd = parent;      // <- talk to the hidden app window
         ShowWindow(h, SW_SHOW);
-        UpdateWindow(h);
-        PostMessageW(h, WM_APP_ENUMDEV, 0, 0);
+        UpdateWindow(h);                       // ensure initial paint
+        PostMessageW(h, WM_APP_ENUMDEV, 0, 0); // enumerate devices in background
     }
     return h;
 }
