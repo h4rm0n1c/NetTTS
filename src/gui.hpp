@@ -15,11 +15,7 @@
 bool show_help_dialog(HINSTANCE hInst, HWND parent);
 HWND create_main_dialog(HINSTANCE hInst, HWND parent = nullptr);
 
-HWND gui_get_main_hwnd();
-void gui_notify_tts_state(bool busy);
-void gui_set_app_hwnd(HWND hwnd);
-
-
 // ---- GUI helpers (implemented in gui.cpp) ----
 HWND gui_get_main_hwnd();            // returns the dialog HWND if created, else nullptr
 void gui_notify_tts_state(bool busy); // one-liner: post WM_APP_TTS_STATE to the dialog
+void gui_set_app_hwnd(HWND hwnd);
