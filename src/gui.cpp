@@ -1,7 +1,6 @@
 #include <windows.h>
 #include "gui.hpp"
 #include "help.hpp"   // for get_help_text_w()
-#include <mmsystem.h>
 
 #ifndef IDD_HELP
 #define IDD_HELP       101
@@ -41,9 +40,6 @@
 #ifndef WM_APP_SPEAK
 # define WM_APP_SPEAK (WM_APP + 1)
 #endif
-#ifndef WM_APP_ENUMDEV
-# define WM_APP_ENUMDEV (WM_APP + 50)
-#endif
 
 
 static HWND s_mainDlg = nullptr;
@@ -77,6 +73,20 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         SetDlgItemTextW(hDlg, IDC_BTN_SERVER, L"Start Server");
         SetDlgItemTextW(hDlg, IDC_BTN_SPEAK,  L"Speak");
 
+        // ---- Populate device combo from WinMM ----
+        HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
+        SendMessageW(hCombo, CB_RESETCONTENT, 0, 0);
+        // Entry 0 = default mapper (-1)
+        int idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)L"(Default output device)");
+        SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)-1);
+
+        UINT ndev = waveOutGetNumDevs();
+        for (UINT i=0; i<ndev; i++){
+            WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
+            idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)caps.szPname);
+            SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)i);
+        }
+
     // Vol 0..100, Rate 30..200 (100=1.00), Pitch 50..150 (100=1.00)
     SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETRANGE, TRUE, MAKELONG(0, 100));
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(30, 200));
@@ -86,7 +96,15 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, 100);
     SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS, TRUE, 100);
 
-        PostMessageW(hDlg, WM_APP_ENUMDEV, 0, 0);
+        // Ask main for current device index and select it
+        int current = (int)SendMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_GET_DEVICE, 0, 0);
+        // find item whose itemdata == current
+        int count = (int)SendMessageW(hCombo, CB_GETCOUNT, 0, 0);
+        for (int k=0; k<count; k++){
+            int val = (int)SendMessageW(hCombo, CB_GETITEMDATA, k, 0);
+            if (val == current){ SendMessageW(hCombo, CB_SETCURSEL, k, 0); break; }
+        }
+
         SendMessageW(hDlg, WM_HSCROLL, 0, 0);
 
         return TRUE;
@@ -110,28 +128,6 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     if (s_appWnd){
         auto* p = new GuiAttrs{ vol, rate, pitch };
         PostMessageW(s_appWnd, WM_APP_ATTRS, 0, (LPARAM)p);
-    }
-
-    case WM_APP_ENUMDEV:{
-        HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
-        SendMessageW(hCombo, CB_RESETCONTENT, 0, 0);
-        int idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)L"(Default output device)");
-        SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)-1);
-
-        UINT ndev = waveOutGetNumDevs();
-        for (UINT i=0; i<ndev; i++){
-            WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
-            idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)caps.szPname);
-            SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)i);
-        }
-
-        int current = (int)SendMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_GET_DEVICE, 0, 0);
-        int count = (int)SendMessageW(hCombo, CB_GETCOUNT, 0, 0);
-        for (int k=0; k<count; k++){
-            int val = (int)SendMessageW(hCombo, CB_GETITEMDATA, k, 0);
-            if (val == current){ SendMessageW(hCombo, CB_SETCURSEL, k, 0); break; }
-        }
-        return TRUE;
     }
     return TRUE;
 }

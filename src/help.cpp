@@ -7,14 +7,14 @@ std::wstring get_help_text_w(){ // central source of truth
     // (Keep this short and accurate; main.cpp owns behavior.)
     // Current flags are based on the code in main/net_server/tts_engine.
     const wchar_t* lines[] = {
-        L"Usage: nettts_gui.exe [--startserver] [--headless]",
+        L"Usage: nettts_gui.exe [--runserver] [--verbose]",
         L"                       [--host HOST] [--port N] [--devnum N]",
         L"                       [--vox | --voxclean] [--posn-ms N] [--selftest]",
         L"                       [--log C:\\path\\file.log]",
         L"",
         L"Options:",
-        L"  --startserver        Start the TCP server",
-        L"  --headless           Run without the GUI (console mode; prints runtime logs)",
+        L"  --runserver          Start the TCP server",
+        L"  --verbose            Print runtime logs to the console (and keep them in the debugger)",
         L"  --host HOST          TCP host to bind (default 127.0.0.1)",
         L"  --port N             TCP port (default 5555)",
         L"  --list-devices        Print output device indices and names, then exit",
@@ -25,14 +25,6 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  --selftest           Queue a short audible self-test matrix and speak it",
         L"  --log PATH           Also write logs to PATH (append mode not implemented)",
         L"  --help               Show this help and exit",
-        L"",
-        L"FlexTalk vendor tags:",
-        L"  \\!wH1 / \\!wH0     Enable/disable VOX prosody",
-        L"  \\!sfN              Final pause of N cs (e.g., 500 -> \\!sf500)",
-        L"  \\!siN              Initial pause of N cs",
-        L"  \\!R#              Rate scale (smaller=fast, larger=slow)",
-        L"  \\!%#              Pitch scale (0.70..1.30 approx)",
-        L"  \\!br              Explicit boundary",
         L"",
         L"TCP commands (one per line; can be inline in the text stream):",
         L"  /rate N              One-shot vendor rate for the next phrase (e.g. N=160 -> \\!r1.60)",
@@ -60,7 +52,7 @@ std::wstring get_help_text_w(){ // central source of truth
 void usage_short(){
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     const wchar_t* s =
-        L"Usage: nettts_gui.exe [--startserver] [--headless] "
+        L"Usage: nettts_gui.exe [--runserver] [--verbose] "
         L"[--host HOST] [--port N] [--devnum N] [--vox|--voxclean]\r\n";
     if (h && h != INVALID_HANDLE_VALUE){
         DWORD w; WriteConsoleW(h, s, (DWORD)wcslen(s), &w, nullptr);
@@ -75,7 +67,7 @@ void show_help_and_exit(bool error /*=false*/){
 }
 
 
-// ---- console help (always prints regardless of --headless) ----
+// ---- console help (always prints regardless of --verbose) ----
 void print_help(){
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     auto txt = get_help_text_w();
