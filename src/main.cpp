@@ -25,6 +25,7 @@
 #define WM_APP_SPEAK             (WM_APP + 1)
 #define WM_APP_TTS_TEXT_DONE     (WM_APP + 7)
 #define WM_APP_TTS_TEXT_START    (WM_APP + 8)
+#define WM_APP_INIT              (WM_APP + 9)
 
 // ------------------------------------------------------------------
 // CLI state
@@ -250,6 +251,33 @@ static void enqueue_incoming_text(const std::string& line){
 static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
     switch(m){
 
+case WM_APP_INIT:{
+    if (!tts_init(g_eng, g_dev_index)){
+        MessageBeep(MB_ICONERROR);
+        PostQuitMessage(2);
+        return 0;
+    }
+    tts_set_notify_hwnd(g_eng, g_hwnd);
+
+    bool started = false;
+    if (g_runserver){
+        started = server_start(g_host, g_port, g_hwnd);
+    }
+    if (HWND dlg = gui_get_main_hwnd()){
+        PostMessageW(dlg, WM_APP_SERVER_STATE, started ? 1 : 0, 0);
+    }
+
+    if (g_posn_poll_ms > 0 && tts_supports_posn(g_eng)) start_posn_poll();
+
+    if (g_selftest){
+        enqueue_selftest();
+        kick_if_idle();
+        std::wstring literal = L"Untagged literal: \\!sf30 should be spoken literally.";
+        (void)tts_speak(g_eng, literal, /*force_tagged*/false);
+    }
+    return 0;
+}
+
 case WM_APP_ATTRS:{
     auto* p = (GuiAttrs*)l;
     if (p){
@@ -468,29 +496,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         }
     }
 
-    if (!tts_init(g_eng, g_dev_index)){
-        MessageBeep(MB_ICONERROR);
-        return 2;
-    }
-    tts_set_notify_hwnd(g_eng, g_hwnd);
-
-    bool started = false;
-    if (g_runserver){
-        started = server_start(g_host, g_port, g_hwnd);
-    }
-    if (show_gui && hDlg){
-        PostMessageW(hDlg, WM_APP_SERVER_STATE, started ? 1 : 0, 0);
-    }
-
-    if (g_posn_poll_ms > 0 && tts_supports_posn(g_eng)) start_posn_poll();
-
-    if (g_selftest){
-        enqueue_selftest();
-        kick_if_idle();
-        // literal (untagged) demo
-        std::wstring literal = L"Untagged literal: \\!sf30 should be spoken literally.";
-        (void)tts_speak(g_eng, literal, /*force_tagged*/false);
-    }
+    PostMessageW(g_hwnd, WM_APP_INIT, 0, 0);
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0){
@@ -498,7 +504,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         DispatchMessageW(&msg);
     }
 
+    int ret = (int)msg.wParam;
     tts_shutdown(g_eng);
     CoUninitialize();
-    return 0;
+    return ret;
 }
