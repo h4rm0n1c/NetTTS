@@ -336,7 +336,6 @@ case WM_APP_TTS_TEXT_START:
 
 case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
-    tts_file_flush(g_eng); // (no-op for device mode)
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
         kick_if_idle();
         if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
