@@ -44,10 +44,18 @@
 #ifndef WM_APP_ENUMDEV
 # define WM_APP_ENUMDEV (WM_APP + 50)
 #endif
+#ifndef WM_APP_ENUMDEV_ADD
+# define WM_APP_ENUMDEV_ADD (WM_APP + 51)
+#endif
+#ifndef WM_APP_ENUMDEV_DONE
+# define WM_APP_ENUMDEV_DONE (WM_APP + 52)
+#endif
 
 
 static HWND s_mainDlg = nullptr;
 static HWND s_appWnd  = nullptr;  // <- hidden app window (owner of WndProc)
+
+static DWORD WINAPI enum_dev_thread(void* param);
 
 HWND gui_get_main_hwnd(){ return s_mainDlg; }
 void gui_set_app_hwnd(HWND h){ s_appWnd = h; }
@@ -55,6 +63,20 @@ void gui_set_app_hwnd(HWND h){ s_appWnd = h; }
 
 void gui_notify_tts_state(bool busy){
     if (s_mainDlg) PostMessageW(s_mainDlg, WM_APP_TTS_STATE, busy ? 1 : 0, 0);
+}
+
+static DWORD WINAPI enum_dev_thread(void* param){
+    HWND hDlg = (HWND)param;
+    PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)-1, (LPARAM)new std::wstring(L"(Default output device)"));
+
+    UINT ndev = waveOutGetNumDevs();
+    for (UINT i = 0; i < ndev; i++){
+        WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
+        PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(caps.szPname));
+    }
+
+    PostMessageW(hDlg, WM_APP_ENUMDEV_DONE, 0, 0);
+    return 0;
 }
 
 
@@ -115,16 +137,22 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_APP_ENUMDEV:{
         HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
         SendMessageW(hCombo, CB_RESETCONTENT, 0, 0);
-        int idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)L"(Default output device)");
-        SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)-1);
-
-        UINT ndev = waveOutGetNumDevs();
-        for (UINT i=0; i<ndev; i++){
-            WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
-            idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)caps.szPname);
-            SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)i);
+        HANDLE th = CreateThread(nullptr, 0, enum_dev_thread, hDlg, 0, nullptr);
+        if (th) CloseHandle(th);
+        return TRUE;
+    }
+    case WM_APP_ENUMDEV_ADD:{
+        auto* name = reinterpret_cast<std::wstring*>(lParam);
+        if (name){
+            HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
+            int idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)name->c_str());
+            SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)wParam);
+            delete name;
         }
-
+        return TRUE;
+    }
+    case WM_APP_ENUMDEV_DONE:{
+        HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
         int current = (int)SendMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_GET_DEVICE, 0, 0);
         int count = (int)SendMessageW(hCombo, CB_GETCOUNT, 0, 0);
         for (int k=0; k<count; k++){
