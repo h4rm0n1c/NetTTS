@@ -1,6 +1,9 @@
 #include <windows.h>
-#define APPICON_ID 1
-APPICON_ID ICON "app.ico"
+#ifndef IDI_APP
+#define IDI_APP  1
+#endif
+
+IDI_APP ICON "app.ico"
 
 // IDs
 #define IDD_HELP       101

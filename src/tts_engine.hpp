@@ -66,5 +66,35 @@ int  tts_posn_get     (Engine& e, DWORD* pos_out /* low 32 bits ok */);
 inline void tts_prepare_next_file_chunk(Engine&){ /* WAV capture disabled */ }
 inline void tts_file_flush(Engine&){ /* WAV capture disabled */ }
 
+// ---- Attribute helpers (UI → engine) ----
+// Map UI 0..100 to SAPI4 volume (0..65535)
+inline void tts_set_volume_percent(Engine& e, int pct){
+    if (!e.attrsW) return;
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    DWORD v = (DWORD)((pct * 65535) / 100);
+    (void)e.attrsW->VolumeSet(v);
+}
+
+// Prefer vendor sticky tags for speed/pitch (FlexTalk honors these best)
+inline void tts_set_rate_percent(Engine& e, int pct){
+    if (!e.cw) return;
+    if (pct < 30) pct = 30; if (pct > 200) pct = 200;
+    double r = pct / 100.0;
+    wchar_t buf[32]; _snwprintf(buf, 31, L" \\!R%.2f ", r); // sticky rate
+    SDATA s{ (PVOID)buf, (DWORD)((wcslen(buf)+1)*sizeof(wchar_t)) };
+    (void)e.cw->TextData(CHARSET_TEXT, TTSDATAFLAG_TAGGED, s,
+                         (PVOID)(ITTSBufNotifySink*)e.sink, IID_ITTSBufNotifySink);
+}
+
+inline void tts_set_pitch_percent(Engine& e, int pct){
+    if (!e.cw) return;
+    if (pct < 50) pct = 50; if (pct > 150) pct = 150;
+    double p = pct / 100.0;
+    wchar_t buf[32]; _snwprintf(buf, 31, L" \\!%%%.2f ", p); // sticky pitch (%%)
+    SDATA s{ (PVOID)buf, (DWORD)((wcslen(buf)+1)*sizeof(wchar_t)) };
+    (void)e.cw->TextData(CHARSET_TEXT, TTSDATAFLAG_TAGGED, s,
+                         (PVOID)(ITTSBufNotifySink*)e.sink, IID_ITTSBufNotifySink);
+}
+
 // Helper used by main.cpp
 bool text_looks_tagged(const std::wstring& w);

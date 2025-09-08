@@ -18,6 +18,7 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  --verbose            Print runtime logs to the console (and keep them in the debugger)",
         L"  --host HOST          TCP host to bind (default 127.0.0.1)",
         L"  --port N             TCP port (default 5555)",
+        L"  --list-devices        Print output device indices and names, then exit",
         L"  --devnum N           Output device number (-1 = default mapper)",
         L"  --vox                Enable VOX prosody (adds vendor tags; wraps with \\!wH1..\\!wH0)",
         L"  --voxclean           VOX prosody without wH wrap (no \\!wH1/\\!wH0; still adds \\!br, etc.)",

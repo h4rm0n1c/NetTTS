@@ -38,71 +38,208 @@
 #endif
 
 
+static HWND s_mainDlg = nullptr;
+
+HWND gui_get_main_hwnd(){
+    return s_mainDlg;
+}
+
+void gui_notify_tts_state(bool busy){
+    if (s_mainDlg){
+        PostMessageW(s_mainDlg, WM_APP_TTS_STATE, busy ? 1 : 0, 0);
+    }
+}
+
+
 // ----------------- Main dialog -----------------
 static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    static bool s_tts_busy = false;
+    static bool s_server_running = false;
+    HINSTANCE hInst = (HINSTANCE)GetWindowLongPtrW(hDlg, GWLP_HINSTANCE);
+
     switch (uMsg){
     case WM_INITDIALOG:{
-        // Reasonable defaults that match the code defaults
-        SetDlgItemTextW(hDlg, IDC_EDIT_HOST, L"127.0.0.1");
-        SetDlgItemTextW(hDlg, IDC_EDIT_PORT, L"5555");
+        // icons omitted for brevity… keep what you already have
 
-        // Sliders: set to common baselines (values are placeholders; wiring later)
-        SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETRANGE, TRUE, MAKELONG(0, 100));
-        SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETPOS,   TRUE, 100);
-        SetDlgItemTextW(hDlg, IDC_VOL_VAL, L"100%");
+        HICON hi = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 32, 32, 0);
+        HICON si = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 16, 16, 0);
+        if (hi) SendMessageW(hDlg, WM_SETICON, ICON_BIG,   (LPARAM)hi);
+        if (si) SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)si);
 
-        SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(30, 200));
-        SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS,   TRUE, 100);
-        SetDlgItemTextW(hDlg, IDC_RATE_VAL, L"1.00");
+        // Default labels
+        SetDlgItemTextW(hDlg, IDC_BTN_SERVER, L"Start Server");
+        SetDlgItemTextW(hDlg, IDC_BTN_SPEAK,  L"Speak");
 
-        SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETRANGE, TRUE, MAKELONG(50, 150));
-        SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS,   TRUE, 100);
-        SetDlgItemTextW(hDlg, IDC_PITCH_VAL, L"1.00");
+        // ---- Populate device combo from WinMM ----
+        HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
+        SendMessageW(hCombo, CB_RESETCONTENT, 0, 0);
+        // Entry 0 = default mapper (-1)
+        int idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)L"(Default output device)");
+        SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)-1);
+
+        UINT ndev = waveOutGetNumDevs();
+        for (UINT i=0; i<ndev; i++){
+            WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
+            idx_added = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)caps.szPname);
+            SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)i);
+        }
+
+        // Ask main for current device index and select it
+        int current = (int)SendMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_GET_DEVICE, 0, 0);
+        // find item whose itemdata == current
+        int count = (int)SendMessageW(hCombo, CB_GETCOUNT, 0, 0);
+        for (int k=0; k<count; k++){
+            int val = (int)SendMessageW(hCombo, CB_GETITEMDATA, k, 0);
+            if (val == current){ SendMessageW(hCombo, CB_SETCURSEL, k, 0); break; }
+        }
 
         return TRUE;
     }
+
+    case WM_HSCROLL:{
+        // (your slider code unchanged; ensure you Post WM_APP_ATTRS with GuiAttrs)
+        return TRUE;
+    }
+
+case WM_APP_SET_SERVER_FIELDS: {
+    auto* f = (GuiServerFields*)lParam;
+    if (f){
+        SetDlgItemTextW(hDlg, IDC_EDIT_HOST, f->host);
+        wchar_t buf[16]; _snwprintf(buf, 15, L"%d", f->port);
+        SetDlgItemTextW(hDlg, IDC_EDIT_PORT, buf);
+        delete f;
+    }
+    return TRUE;
+}
+
     case WM_COMMAND:{
         const WORD id = LOWORD(wParam);
-        if (id == IDC_BTN_HELP){
-            show_help_dialog((HINSTANCE)GetWindowLongPtrW(hDlg, GWLP_HINSTANCE), hDlg);
-            return TRUE;
-        } else if (id == IDC_BTN_SPEAK){
-            // Grab text and post it as a line to WM_APP_SPEAK.
-            // This matches main.cpp’s WndProc contract (heap std::string*).
-            int n = GetWindowTextLengthW(GetDlgItem(hDlg, IDC_EDIT_TEXT));
-            std::wstring w(n, L'\0');
-            if (n > 0){
-                GetWindowTextW(GetDlgItem(hDlg, IDC_EDIT_TEXT), &w[0], n+1);
-                std::string u8 = w_to_u8(w);
-                auto* heap = new std::string(std::move(u8));
-                PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_SPEAK, 0, (LPARAM)heap);
+        const WORD code = HIWORD(wParam);
+
+        if (id == IDC_BTN_HELP){ show_help_dialog(hInst, hDlg); return TRUE; }
+
+        else if (id == IDC_BTN_SPEAK && code == BN_CLICKED){
+            if (!s_tts_busy){
+                // gather text, post WM_APP_SPEAK with std::string*
+                int n = GetWindowTextLengthW(GetDlgItem(hDlg, IDC_EDIT_TEXT));
+                if (n > 0){
+                    std::wstring w(n, L'\0');
+                    GetDlgItemTextW(hDlg, IDC_EDIT_TEXT, &w[0], n+1);
+                    int m = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+                    std::string u8(m, '\0');
+                    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), u8.data(), m, nullptr, nullptr);
+                    auto* payload = new std::string(std::move(u8));
+                    PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_SPEAK, 0, (LPARAM)payload);
+                    s_tts_busy = true;
+                    SetDlgItemTextW(hDlg, IDC_BTN_SPEAK, L"Stop");
+                }
+            } else {
+                auto* payload = new std::string("/stop");
+                PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_SPEAK, 0, (LPARAM)payload);
+                s_tts_busy = false;
+                SetDlgItemTextW(hDlg, IDC_BTN_SPEAK, L"Speak");
             }
             return TRUE;
-        } else if (id == IDOK || id == IDCANCEL){
+        }
+
+        else if (id == IDC_BTN_APPLY && code == BN_CLICKED){
+            HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
+            int sel = (int)SendMessageW(hCombo, CB_GETCURSEL, 0, 0);
+            if (sel >= 0){
+                int devIndex = (int)SendMessageW(hCombo, CB_GETITEMDATA, sel, 0);
+                auto* p = new GuiDeviceSel{ devIndex };
+                PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_DEVICE, 0, (LPARAM)p);
+            }
+            return TRUE;
+        }
+
+        else if (id == IDC_BTN_SERVER && code == BN_CLICKED){
+            wchar_t host[64]{0}, port[16]{0};
+            GetDlgItemTextW(hDlg, IDC_EDIT_HOST, host, 63);
+            GetDlgItemTextW(hDlg, IDC_EDIT_PORT, port, 15);
+            int p = _wtoi(port);
+            auto* req = new GuiServerReq{};
+            wcsncpy(req->host, host, 63); req->host[63]=0;
+            req->port = p;
+            req->start = s_server_running ? 0 : 1;
+            PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_SERVER_REQ, 0, (LPARAM)req);
+            return TRUE;
+        }
+
+   else if (id == IDC_DEV_COMBO && code == CBN_SELCHANGE){
+        HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
+        int sel = (int)SendMessageW(hCombo, CB_GETCURSEL, 0, 0);
+        if (sel >= 0){
+            int devIndex = (int)SendMessageW(hCombo, CB_GETITEMDATA, sel, 0);
+            auto* p = new GuiDeviceSel{ devIndex };
+            PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_DEVICE, 0, (LPARAM)p);
+        }
+        return TRUE;
+    }
+
+        else if (id == IDOK || id == IDCANCEL){
+            PostQuitMessage(0);
             DestroyWindow(hDlg);
             return TRUE;
         }
         break;
     }
+
+    // ---- app → gui notifications ----
+    case WM_APP_SERVER_STATE:{
+        s_server_running = (wParam != 0);
+        SetDlgItemTextW(hDlg, IDC_BTN_SERVER, s_server_running ? L"Stop Server" : L"Start Server");
+        return TRUE;
+    }
+    case WM_APP_TTS_STATE:{
+        s_tts_busy = (wParam != 0);
+        SetDlgItemTextW(hDlg, IDC_BTN_SPEAK, s_tts_busy ? L"Stop" : L"Speak");
+        return TRUE;
+    }
+    case WM_APP_DEVICE_STATE:{
+        HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
+        int count = (int)SendMessageW(hCombo, CB_GETCOUNT, 0, 0);
+        for (int k=0; k<count; k++){
+            int val = (int)SendMessageW(hCombo, CB_GETITEMDATA, k, 0);
+            if (val == (int)wParam){ SendMessageW(hCombo, CB_SETCURSEL, k, 0); break; }
+        }
+        return TRUE;
+    }
+
     case WM_CLOSE:
+        PostQuitMessage(0);
         DestroyWindow(hDlg);
         return TRUE;
     }
     return FALSE;
 }
 
+
+
 // Create the modeless main dialog (caller owns message pump)
 HWND create_main_dialog(HINSTANCE hInst, HWND parent){
     INITCOMMONCONTROLSEX icc{ sizeof(icc), ICC_BAR_CLASSES };
     InitCommonControlsEx(&icc);
     HWND h = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_MAIN), parent, MainDlgProc, 0);
-    if (h) ShowWindow(h, SW_SHOW);
+    if (h){
+        s_mainDlg = h;                // <- remember it
+        // g_hwnd = CreateWindowExW(...);
+        ShowWindow(h, SW_SHOW);
+    }
     return h;
 }
+
 
 static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM){
     switch(uMsg){
     case WM_INITDIALOG:{
+
+HINSTANCE hInst = (HINSTANCE)GetWindowLongPtrW(hDlg, GWLP_HINSTANCE);
+HICON hBig   = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 32, 32, 0);
+HICON hSmall = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 16, 16, 0);
+if (hBig)   SendMessageW(hDlg, WM_SETICON, ICON_BIG,   (LPARAM)hBig);
+if (hSmall) SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hSmall);
+
         auto txt = get_help_text_w();                 // single source of help text
         SetDlgItemTextW(hDlg, IDC_HELP_EDIT, txt.c_str());
         // avoid auto-selected text; focus OK

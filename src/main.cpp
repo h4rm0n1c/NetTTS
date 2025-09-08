@@ -9,13 +9,15 @@
 #include <cstdio>
 #include "log.hpp"
 #include "vox_parser.hpp"
-
 #include "tts_engine.hpp"
+
 #include "net_server.hpp"
 #include "util.hpp"   // u8_to_w()
 
+#include "ipc.hpp"
 #include "gui.hpp"   // create_main_dialog(...)
 #include "help.hpp"  // usage_short(), show_help_and_exit(), print_help()
+#include <mmsystem.h>   // for --list-devices (WinMM)
 
 #ifndef WM_APP
 #  define WM_APP 0x8000
@@ -249,6 +251,62 @@ static void enqueue_incoming_text(const std::string& line){
 // WndProc
 static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
     switch(m){
+
+case WM_APP_ATTRS:{
+    auto* p = (GuiAttrs*)l;
+    if (p){
+        tts_set_volume_percent(g_eng, p->vol_percent);
+        tts_set_rate_percent  (g_eng, p->rate_percent);
+        tts_set_pitch_percent (g_eng, p->pitch_percent);
+        delete p;
+    }
+    return 0;
+}
+
+case WM_APP_DEVICE: {
+    auto* p = (GuiDeviceSel*)l; // struct from gui.hpp (index)
+    if (p){
+        int new_idx = p->index; // -1 = default mapper
+        if (new_idx != g_dev_index){
+            g_dev_index = new_idx;
+            // Re-init the engine on the new device
+            tts_init(g_eng, g_dev_index, g_to_file, g_wavpath.c_str());
+        }
+        // reflect back to GUI so the combo shows the actual device
+        if (HWND dlg = gui_get_main_hwnd()){
+            PostMessageW(dlg, WM_APP_DEVICE_STATE, (WPARAM)g_dev_index, 0);
+        }
+        delete p;
+    }
+    return 0;
+}
+
+case WM_APP_SERVER_REQ: {
+    auto* r = (GuiServerReq*)l; // struct from gui.hpp (host/port/start)
+    if (r){
+        bool ok = false;
+        if (r->start){
+            ok = server_start(std::wstring(r->host), r->port, g_hwnd);
+        } else {
+            server_stop();
+            ok = true;
+        }
+        if (HWND dlg = gui_get_main_hwnd()){
+            PostMessageW(dlg, WM_APP_SERVER_STATE, ok && r->start ? 1 : 0, 0);
+        }
+        delete r;
+    }
+    return 0;
+}
+
+case WM_APP_GET_DEVICE:{
+    // Return your current device index (use your own tracker here)
+    // Example if you track it as g_devnum:
+    // return (LRESULT)g_devnum;
+    return (LRESULT)g_dev_index;
+}
+
+
 case WM_APP_SPEAK: {
     std::string* txt = (std::string*)l;
     if (!txt) return 0;
@@ -257,18 +315,25 @@ case WM_APP_SPEAK: {
     return 0;
 }
 
-    case WM_APP_TTS_TEXT_START:
-        g_inflight_local++;
-        return 0;
+case WM_APP_TTS_TEXT_START:
+    g_inflight_local++;
+    // one-liner: tell the GUI it's busy now
+    gui_notify_tts_state(true);
+    return 0;
+
 
 case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
-    tts_file_flush(g_eng);          // stitch the just-finished phrase (no-op if not in file mode)
+    tts_file_flush(g_eng); // (no-op for device mode)
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
-        kick_if_idle();             // move to the next phrase if queued
+        kick_if_idle();
+        if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
+            gui_notify_tts_state(false);  // <— GUI button → "Speak"
+        }
     }
     return 0;
 }
+
 
 
     case WM_TIMER:
@@ -301,6 +366,23 @@ static void parse_cmdline(){
     for (int i=1;i<argc;i++){
         std::wstring a = argv[i];
         if (a==L"--gui") { g_cli_gui = true; } else if (a==L"--help" || a == L"-h" || a == L"/?") { g_cli_help = true; }
+else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
+    if (!g_verbose) AllocConsole(); // or your own console attach
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    auto put = [&](const std::wstring& s){
+        DWORD w; WriteConsoleW(h, s.c_str(), (DWORD)s.size(), &w, nullptr);
+        WriteConsoleW(h, L"\r\n", 2, &w, nullptr);
+    };
+    put(L"Device index mapping (use with --devnum):");
+    put(L"  -1 : (Default output device)");
+    UINT ndev = waveOutGetNumDevs();
+    for (UINT di=0; di<ndev; di++){
+        WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(di, &caps, sizeof(caps));
+        wchar_t line[512]; _snwprintf(line, 511, L"  %u : %ls", di, caps.szPname);
+        put(line);
+    }
+    ExitProcess(0);
+}
         else if (a==L"--headless") g_headless=true;
         else if (a==L"--verbose") g_verbose=true;
         else if (a==L"--vox"){ g_vox_enabled = true; }
@@ -341,6 +423,10 @@ log_set_verbose(g_verbose);
     wc.hInstance     = hInst;
     wc.lpfnWndProc   = WndProc;
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+    wc.hIcon   = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP),
+                                 IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR);
+    wc.hIconSm = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP),
+                                 IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
     RegisterClassExW(&wc);
 
     g_hwnd = CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, L"NetTTS Eventhandler",
@@ -350,6 +436,20 @@ log_set_verbose(g_verbose);
 
     if (g_cli_gui) {
         HWND hDlg = create_main_dialog(hInst, g_hwnd);
+
+        // Seed: current device index -> combo selection
+        if (hDlg){
+            PostMessageW(hDlg, WM_APP_DEVICE_STATE, (WPARAM)g_dev_index, 0);
+
+            // Seed: host/port fields from CLI (g_host, g_port)
+            auto* f = new GuiServerFields{};
+            wcsncpy(f->host, g_host.c_str(), 63); f->host[63]=0;
+            f->port = g_port;
+            PostMessageW(hDlg, WM_APP_SET_SERVER_FIELDS, 0, (LPARAM)f);
+
+            // Seed: server button from actual running state
+            PostMessageW(hDlg, WM_APP_SERVER_STATE, server_is_running() ? 1 : 0, 0);
+        }
     }
 
     if (!tts_init(g_eng, g_dev_index, g_to_file, g_to_file ? g_wavpath.c_str() : nullptr)){

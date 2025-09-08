@@ -6,6 +6,7 @@
 #include "net_server.hpp"
 #include "util.hpp"
 #include <string>
+#include <atomic>
 
 #ifndef WM_APP
 #  define WM_APP 0x8000
@@ -20,6 +21,14 @@ static SOCKET g_listen = INVALID_SOCKET;
 static HWND   g_hwnd   = nullptr;
 static std::wstring g_host = L"127.0.0.1";
 static int          g_port = 5555;
+
+// ---- server state ----
+static std::atomic<bool> g_server_running{false};
+
+// expose status to the rest of the app
+bool server_is_running(){
+    return g_server_running.load(std::memory_order_acquire);
+}
 
 static DWORD WINAPI server_thread(LPVOID){
     WSADATA wsa; 
@@ -60,6 +69,7 @@ static DWORD WINAPI server_thread(LPVOID){
         WSACleanup(); 
         return 0; 
     }
+    g_server_running.store(true, std::memory_order_release);
     dprintf("[net] listening on %s:%d", hostA.c_str(), g_port);
 
     while(!g_stop){
@@ -100,10 +110,12 @@ bool server_start(const std::wstring& host, int port, HWND hwnd){
     if(g_hThread) return true;
     g_stop=0; g_hwnd=hwnd; g_host=host; g_port=port;
     g_hThread = CreateThread(nullptr,0,server_thread,nullptr,0,nullptr);
+
     return g_hThread!=nullptr;
 }
 void server_stop(){
     g_stop=1;
     if(g_listen!=INVALID_SOCKET){ shutdown(g_listen, SD_BOTH); }
     if(g_hThread){ WaitForSingleObject(g_hThread, 2000); CloseHandle(g_hThread); g_hThread=nullptr; }
+    g_server_running.store(false, std::memory_order_release);
 }
