@@ -86,30 +86,30 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, 100);
     SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS, TRUE, 100);
 
-        PostMessageW(hDlg, WM_APP_ENUMDEV, 0, 0);
         SendMessageW(hDlg, WM_HSCROLL, 0, 0);
-
         return TRUE;
     }
 
     case WM_HSCROLL:{
-    const HWND hVol   = GetDlgItem(hDlg, IDC_VOL_SLIDER);
-    const HWND hRate  = GetDlgItem(hDlg, IDC_RATE_SLIDER);
-    const HWND hPitch = GetDlgItem(hDlg, IDC_PITCH_SLIDER);
+        const HWND hVol   = GetDlgItem(hDlg, IDC_VOL_SLIDER);
+        const HWND hRate  = GetDlgItem(hDlg, IDC_RATE_SLIDER);
+        const HWND hPitch = GetDlgItem(hDlg, IDC_PITCH_SLIDER);
 
-    const int vol   = (int)SendMessageW(hVol,   TBM_GETPOS, 0, 0);   // 0..100
-    const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 30..200
-    const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 50..150
+        const int vol   = (int)SendMessageW(hVol,   TBM_GETPOS, 0, 0);   // 0..100
+        const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 30..200
+        const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 50..150
 
-    // Update the numeric labels:
-    wchar_t b[32];
-    _snwprintf(b, 31, L"%d%%", vol);        SetDlgItemTextW(hDlg, IDC_VOL_VAL,  b);
-    _snwprintf(b, 31, L"%.2f", rate/100.0); SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
-    _snwprintf(b, 31, L"%.2f", pitch/100.0);SetDlgItemTextW(hDlg, IDC_PITCH_VAL,b);
+        // Update the numeric labels:
+        wchar_t b[32];
+        _snwprintf(b, 31, L"%d%%", vol);        SetDlgItemTextW(hDlg, IDC_VOL_VAL,  b);
+        _snwprintf(b, 31, L"%.2f", rate/100.0); SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
+        _snwprintf(b, 31, L"%.2f", pitch/100.0);SetDlgItemTextW(hDlg, IDC_PITCH_VAL,b);
 
-    if (s_appWnd){
-        auto* p = new GuiAttrs{ vol, rate, pitch };
-        PostMessageW(s_appWnd, WM_APP_ATTRS, 0, (LPARAM)p);
+        if (s_appWnd){
+            auto* p = new GuiAttrs{ vol, rate, pitch };
+            PostMessageW(s_appWnd, WM_APP_ATTRS, 0, (LPARAM)p);
+        }
+        return TRUE;
     }
 
     case WM_APP_ENUMDEV:{
@@ -133,11 +133,7 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         }
         return TRUE;
     }
-    return TRUE;
-}
-
-
-case WM_APP_SET_SERVER_FIELDS: {
+    case WM_APP_SET_SERVER_FIELDS: {
     auto* f = (GuiServerFields*)lParam;
     if (f){
         SetDlgItemTextW(hDlg, IDC_EDIT_HOST, f->host);
@@ -274,6 +270,8 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
         s_mainDlg = h;                // <- remember it
         if (parent) s_appWnd = parent;      // <- talk to the hidden app window
         ShowWindow(h, SW_SHOW);
+        UpdateWindow(h);                       // ensure initial paint
+        PostMessageW(h, WM_APP_ENUMDEV, 0, 0); // enumerate devices in background
     }
     return h;
 }
