@@ -6,7 +6,6 @@
 std::wstring get_help_text_w(){ // central source of truth
     // (Keep this short and accurate; main.cpp owns behavior.)
     // Current flags are based on the code in main/net_server/tts_engine.
-    // WAV capture is disabled in the engine by design.
     const wchar_t* lines[] = {
         L"Usage: nettts_gui.exe [--gui|--headless] [--verbose]",
         L"                       [--host HOST] [--port N] [--devnum N]",
@@ -38,7 +37,6 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  [[pause 500]]        In-band pause directive (transforms to \\!sf500 plus \\!br)",
         L"",
         L"Notes:",
-        L"  • WAV capture is disabled; audio goes to the selected device.",
         L"  • In VOX modes, final cadence adds a ~500ms pause and a boundary.",
         nullptr
     };
