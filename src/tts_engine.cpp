@@ -169,7 +169,6 @@ static bool select_voice_and_audio(Engine& e, int device_index){
 
     // Probe PosnGet
     QWORD q=0; e.has_posn = SUCCEEDED(e.cw->PosnGet(&q));
-
     return true;
 }
 
