@@ -32,21 +32,21 @@ void log_attach_console(){
 void dprintf(const char* fmt, ...){
     char buf[2048];
     va_list ap; va_start(ap, fmt);
-    _vsnprintf(buf, sizeof(buf)-1, fmt, ap);
-    buf[sizeof(buf)-1] = 0;
+    int len = _vsnprintf(buf, sizeof(buf)-3, fmt, ap);
     va_end(ap);
+    if (len < 0) len = (int)sizeof(buf)-3;
+    buf[len++] = '\r';
+    buf[len++] = '\n';
+    buf[len] = 0;
 
     OutputDebugStringA(buf);
-    OutputDebugStringA("\r\n");
 
     // Only write to the console when verbose is enabled
     if(g_has_console && g_verbose){
         HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
         if (h && h != INVALID_HANDLE_VALUE) {
-            DWORD w;
-            WriteConsoleA(h, buf, (DWORD)strlen(buf), &w, nullptr);
-            WriteConsoleA(h, "\r\n", 2, &w, nullptr);
+            DWORD w; WriteConsoleA(h, buf, (DWORD)len, &w, nullptr);
         }
     }
-    if (g_logFile) { fprintf(g_logFile, "%s\n", buf); fflush(g_logFile); }
+    if (g_logFile) { fwrite(buf, 1, (size_t)len, g_logFile); fflush(g_logFile); }
 }

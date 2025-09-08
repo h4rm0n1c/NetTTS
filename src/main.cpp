@@ -28,14 +28,13 @@
 
 // ------------------------------------------------------------------
 // CLI state
-static bool         g_headless      = false; // --runserver
-static bool         g_verbose       = false;
+static bool         g_runserver     = false; // --startserver
+static bool         g_headless      = false; // --headless
 static std::wstring g_host          = L"127.0.0.1";
 static int          g_port          = 5555;
 static int          g_dev_index     = -1;
 static int          g_posn_poll_ms  = 0;
 static bool         g_selftest      = false;
-static bool         g_log_set       = false; // --log PATH
 
 // App state
 static HWND         g_hwnd          = nullptr;
@@ -154,7 +153,7 @@ static void kick_if_idle(){
 
     const bool tagged = text_looks_tagged(w);
     HRESULT hr = tts_speak(g_eng, w, tagged);
-    if (g_verbose) {
+    if (g_headless) {
         dprintf("[speak] hr=0x%08lx tagged=%d len=%u", hr, tagged?1:0, (unsigned)w.size());
     }
 }
@@ -206,14 +205,14 @@ static UINT_PTR g_posn_timer = 0;
 static void start_posn_poll(){ if (!g_posn_timer && g_posn_poll_ms>0) g_posn_timer = SetTimer(g_hwnd, 42, (UINT)g_posn_poll_ms, nullptr); }
 static void stop_posn_poll(){ if (g_posn_timer){ KillTimer(g_hwnd, g_posn_timer); g_posn_timer=0; } }
 
-// --- VOX debug logging (guarded by g_verbose) ---
+// --- VOX debug logging (guarded by g_headless) ---
 static std::string replace_all(std::string s, const std::string& a, const std::string& b){
     size_t p = 0;
     while ((p = s.find(a, p)) != std::string::npos) { s.replace(p, a.size(), b); p += b.size(); }
     return s;
 }
 static void log_vox_transform(const std::string& in_u8, const std::wstring& out_w){
-    if (!g_verbose) return;
+    if (!g_headless) return;
     std::string out_u8 = w_to_u8(out_w);
 
     // pretty for readability in logs (doesn't affect what we send to TTS)
@@ -282,9 +281,9 @@ case WM_APP_DEVICE: {
 
 case WM_APP_PROSODY: {
     int mode = (int)w;
-    if (mode == 0){ g_vox_enabled = false; g_vox_clean = false; }
+    if (mode == 0){ g_vox_enabled = false; g_vox_clean = false; tts_speak(g_eng, L" \\!wH0 ", true); }
     else if (mode == 1){ g_vox_enabled = true;  g_vox_clean = false; }
-    else if (mode == 2){ g_vox_enabled = true;  g_vox_clean = true; }
+    else if (mode == 2){ g_vox_enabled = true;  g_vox_clean = true; tts_speak(g_eng, L" \\!wH0 ", true); }
     return 0;
 }
 
@@ -319,7 +318,7 @@ case WM_APP_STOP: {
     tts_audio_reset(g_eng);               // immediate stop/reset (SAPI4)
     g_eng.inflight.store(0);              // best-effort local reset
     gui_notify_tts_state(false);          // reflect back to GUI
-    if (g_verbose) dprintf("[stop] hard stop + clear queue");
+    if (g_headless) dprintf("[stop] hard stop + clear queue");
     return 0;
 }
 
@@ -383,7 +382,7 @@ static void parse_cmdline(){
         std::wstring a = argv[i];
         if (a==L"--help" || a == L"-h" || a == L"/?") { g_cli_help = true; }
 else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
-    if (!g_verbose) AllocConsole(); // or your own console attach
+    if (!g_headless) AllocConsole(); // or your own console attach
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     auto put = [&](const std::wstring& s){
         DWORD w; WriteConsoleW(h, s.c_str(), (DWORD)s.size(), &w, nullptr);
@@ -399,9 +398,9 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
     }
     ExitProcess(0);
 }
-        else if (a==L"--runserver") g_headless=true;
-        else if (a==L"--verbose") g_verbose=true;
-        else if (a==L"--log" && i+1<argc){ log_set_path(argv[++i]); g_log_set = true; }
+        else if (a==L"--runserver" || a==L"--startserver") g_runserver=true;
+        else if (a==L"--headless" || a==L"--verbose") g_headless=true;
+        else if (a==L"--log" && i+1<argc){ log_set_path(argv[++i]); }
         else if (a==L"--vox"){ g_vox_enabled = true; }
         else if (a==L"--voxclean") { g_vox_enabled = true; g_vox_clean = true; }
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
@@ -421,15 +420,15 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
 
     parse_cmdline();
 
-    if (g_verbose || g_cli_help) log_attach_console();
-    log_set_verbose(g_verbose);
+    if (g_headless || g_cli_help) log_attach_console();
+    log_set_verbose(g_headless);
 
     if (g_cli_help) {
         show_help_and_exit(false);
         return 0;
     }
 
-    bool show_gui = !(g_verbose && !g_log_set);
+    bool show_gui = !g_headless;
 
     // Window
     WNDCLASSEXW wc{sizeof(wc)};
@@ -448,8 +447,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
                              nullptr, nullptr, hInst, nullptr);
     ShowWindow(g_hwnd, SW_HIDE);
 
+    HWND hDlg = nullptr;
     if (show_gui) {
-        HWND hDlg = create_main_dialog(hInst, g_hwnd);
+        hDlg = create_main_dialog(hInst, g_hwnd);
         gui_set_app_hwnd(g_hwnd);
 
         if (hDlg){
@@ -474,8 +474,12 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
     }
     tts_set_notify_hwnd(g_eng, g_hwnd);
 
-    if (g_headless){
-        server_start(g_host, g_port, g_hwnd);
+    bool started = false;
+    if (g_runserver){
+        started = server_start(g_host, g_port, g_hwnd);
+    }
+    if (show_gui && hDlg){
+        PostMessageW(hDlg, WM_APP_SERVER_STATE, started ? 1 : 0, 0);
     }
 
     if (g_posn_poll_ms > 0 && tts_supports_posn(g_eng)) start_posn_poll();
