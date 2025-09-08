@@ -402,7 +402,7 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
         else if (a==L"--port" && i+1<argc) g_port = _wtoi(argv[++i]);
         else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
-        else if (a==L"--posn-poll-ms" && i+1<argc) g_posn_poll_ms = _wtoi(argv[++i]);
+        else if (a==L"--posn-ms" && i+1<argc) g_posn_poll_ms = _wtoi(argv[++i]);
         else if (a==L"--selftest") g_selftest=true;
         else if (a==L"--file" && i+1<argc){ g_to_file=true; g_wavpath = argv[++i]; }
     }

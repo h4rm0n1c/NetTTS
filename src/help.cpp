@@ -22,7 +22,7 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  --devnum N           Output device number (-1 = default mapper)",
         L"  --vox                Enable VOX prosody (adds vendor tags; wraps with \\!wH1..\\!wH0)",
         L"  --voxclean           VOX prosody without wH wrap (no \\!wH1/\\!wH0; still adds \\!br, etc.)",
-        L"  --posn-ms N          Enable periodic PosnGet polling every N ms (if the engine supports it)",
+        L"  --posn-ms N          Enable periodic PosnGet polling every N milliseconds (if the engine supports it)",
         L"  --selftest           Queue a short audible self-test matrix and speak it",
         L"  --log PATH           Also write logs to PATH (append mode not implemented)",
         L"  --help               Show this help and exit",
