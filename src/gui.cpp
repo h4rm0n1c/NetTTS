@@ -86,9 +86,7 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, 100);
     SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS, TRUE, 100);
 
-        PostMessageW(hDlg, WM_APP_ENUMDEV, 0, 0);
         SendMessageW(hDlg, WM_HSCROLL, 0, 0);
-
         return TRUE;
     }
 
@@ -272,6 +270,8 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
         s_mainDlg = h;                // <- remember it
         if (parent) s_appWnd = parent;      // <- talk to the hidden app window
         ShowWindow(h, SW_SHOW);
+        UpdateWindow(h);
+        PostMessageW(h, WM_APP_ENUMDEV, 0, 0);
     }
     return h;
 }
