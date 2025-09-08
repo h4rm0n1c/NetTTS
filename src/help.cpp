@@ -7,13 +7,13 @@ std::wstring get_help_text_w(){ // central source of truth
     // (Keep this short and accurate; main.cpp owns behavior.)
     // Current flags are based on the code in main/net_server/tts_engine.
     const wchar_t* lines[] = {
-        L"Usage: nettts_gui.exe [--gui|--headless] [--verbose]",
+        L"Usage: nettts_gui.exe [--runserver] [--verbose]",
         L"                       [--host HOST] [--port N] [--devnum N]",
         L"                       [--vox | --voxclean] [--posn-ms N] [--selftest]",
         L"                       [--log C:\\path\\file.log]",
         L"",
         L"Options:",
-        L"  --gui / --headless   Show the GUI window or run hidden (message pump always present)",
+        L"  --runserver          Start the TCP server",
         L"  --verbose            Print runtime logs to the console (and keep them in the debugger)",
         L"  --host HOST          TCP host to bind (default 127.0.0.1)",
         L"  --port N             TCP port (default 5555)",
@@ -37,7 +37,7 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  [[pause 500]]        In-band pause directive (transforms to \\!sf500 plus \\!br)",
         L"",
         L"Notes:",
-        L"  • In VOX modes, final cadence adds a ~500ms pause and a boundary.",
+        L"  * In VOX modes, final cadence adds a ~500ms pause and a boundary.",
         nullptr
     };
 
@@ -52,7 +52,7 @@ std::wstring get_help_text_w(){ // central source of truth
 void usage_short(){
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     const wchar_t* s =
-        L"Usage: nettts_gui.exe [--gui|--headless] [--verbose] "
+        L"Usage: nettts_gui.exe [--runserver] [--verbose] "
         L"[--host HOST] [--port N] [--devnum N] [--vox|--voxclean]\r\n";
     if (h && h != INVALID_HANDLE_VALUE){
         DWORD w; WriteConsoleW(h, s, (DWORD)wcslen(s), &w, nullptr);
