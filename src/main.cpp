@@ -28,7 +28,6 @@
 
 // ------------------------------------------------------------------
 // CLI state
-static bool         g_show_window   = false;
 static bool         g_headless      = false;
 static bool         g_verbose       = false;
 static std::wstring g_host          = L"127.0.0.1";
