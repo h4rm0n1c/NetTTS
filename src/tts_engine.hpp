@@ -30,7 +30,6 @@ struct Engine {
 
     // PosnGet availability
     bool             has_posn = false;
-
 };
 
 // App messages (match your main.cpp; re-defining to the same value is OK)
@@ -69,10 +68,6 @@ std::wstring tts_vendor_prefix_from_ui();
 // PosnGet support
 bool tts_supports_posn(Engine& e);
 int  tts_posn_get     (Engine& e, DWORD* pos_out /* low 32 bits ok */);
-
-// File-mode compatibility stubs (no-ops now)
-inline void tts_prepare_next_file_chunk(Engine&){ /* WAV capture disabled */ }
-inline void tts_file_flush(Engine&){ /* WAV capture disabled */ }
 
 
 // Prefer vendor sticky tags for speed/pitch (FlexTalk honors these best)

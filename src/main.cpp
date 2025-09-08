@@ -36,8 +36,6 @@ static int          g_port          = 5555;
 static int          g_dev_index     = -1;
 static int          g_posn_poll_ms  = 0;
 static bool         g_selftest      = false;
-static bool         g_to_file       = false;
-static std::wstring g_wavpath;
 
 // App state
 static HWND         g_hwnd          = nullptr;
@@ -336,7 +334,6 @@ case WM_APP_TTS_TEXT_START:
 
 case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
-    tts_file_flush(g_eng); // (no-op for device mode)
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
         kick_if_idle();
         if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
@@ -404,7 +401,6 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
         else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
         else if (a==L"--posn-poll-ms" && i+1<argc) g_posn_poll_ms = _wtoi(argv[++i]);
         else if (a==L"--selftest") g_selftest=true;
-        else if (a==L"--file" && i+1<argc){ g_to_file=true; g_wavpath = argv[++i]; }
     }
     LocalFree(argv);
 }
