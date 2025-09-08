@@ -30,10 +30,6 @@ struct Engine {
 
     // PosnGet availability
     bool             has_posn = false;
-
-    // Flags/fields kept for compatibility (WAV disabled; these are ignored)
-    bool             to_file   = false;
-    std::wstring     wav_path;
 };
 
 // App messages (match your main.cpp; re-defining to the same value is OK)
@@ -44,7 +40,7 @@ struct Engine {
 #define WM_APP_TTS_TEXT_DONE     (WM_APP + 7)
 
 // Init / shutdown
-bool tts_init   (Engine& e, int device_index /* -1 = default mapper */, bool to_file = false, const wchar_t* wav_path = nullptr);
+bool tts_init   (Engine& e, int device_index /* -1 = default mapper */);
 void tts_shutdown(Engine& e);
 
 // Where to post WM_APP_* messages
@@ -72,10 +68,6 @@ std::wstring tts_vendor_prefix_from_ui();
 // PosnGet support
 bool tts_supports_posn(Engine& e);
 int  tts_posn_get     (Engine& e, DWORD* pos_out /* low 32 bits ok */);
-
-// File-mode compatibility stubs (no-ops now)
-inline void tts_prepare_next_file_chunk(Engine&){ /* WAV capture disabled */ }
-inline void tts_file_flush(Engine&){ /* WAV capture disabled */ }
 
 
 // Prefer vendor sticky tags for speed/pitch (FlexTalk honors these best)

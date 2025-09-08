@@ -272,7 +272,7 @@ case WM_APP_DEVICE: {
         if (new_idx != g_dev_index){
             g_dev_index = new_idx;
             // Re-init the engine on the new device
-            tts_init(g_eng, g_dev_index, g_to_file, g_wavpath.c_str());
+            tts_init(g_eng, g_dev_index);
         }
         // reflect back to GUI so the combo shows the actual device
         if (HWND dlg = gui_get_main_hwnd()){
@@ -336,7 +336,6 @@ case WM_APP_TTS_TEXT_START:
 
 case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
-    tts_file_flush(g_eng); // (no-op for device mode)
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
         kick_if_idle();
         if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
@@ -466,7 +465,7 @@ log_set_verbose(g_verbose);
         }
     }
 
-    if (!tts_init(g_eng, g_dev_index, g_to_file, g_to_file ? g_wavpath.c_str() : nullptr)){
+    if (!tts_init(g_eng, g_dev_index)){
         MessageBeep(MB_ICONERROR);
         return 2;
     }
