@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <string>
 #include "gui.hpp"
 #include "help.hpp"   // for get_help_text_w()
 #include <mmsystem.h>
