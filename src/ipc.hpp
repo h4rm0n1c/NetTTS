@@ -43,6 +43,10 @@
 #define WM_APP_SET_SERVER_FIELDS (WM_APP + 17) // payload: GuiServerFields*
 #endif
 
+#ifndef WM_APP_STOP
+#define WM_APP_STOP         (WM_APP + 18)   // GUI → main: hard stop + clear queue
+#endif
+
 // ---- POD payloads ----
 struct GuiAttrs { int vol_percent; int rate_percent; int pitch_percent; };
 struct GuiDeviceSel { int index; /* -1 = default */ };

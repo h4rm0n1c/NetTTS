@@ -237,6 +237,8 @@ static void enqueue_incoming_text(const std::string& line){
         // VOX: transform then push as a single chunk (no extra splitting)
         std::wstring w = u8_to_w(line);
         std::wstring wtag = vox_process(w,!g_vox_clean);
+        std::wstring prefix = tts_vendor_prefix_from_ui();
+        if (!prefix.empty()) wtag = prefix + wtag;
         log_vox_transform(line, wtag);     // <-- add this line
         if (!wtag.empty()) g_q.push_back({ wtag });
     } else {
@@ -255,9 +257,9 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
 case WM_APP_ATTRS:{
     auto* p = (GuiAttrs*)l;
     if (p){
-        tts_set_volume_percent(g_eng, p->vol_percent);
-        tts_set_rate_percent  (g_eng, p->rate_percent);
-        tts_set_pitch_percent (g_eng, p->pitch_percent);
+        tts_set_volume_percent(g_eng,p->vol_percent);
+        tts_set_rate_percent_ui(p->rate_percent);
+        tts_set_pitch_percent_ui(p->pitch_percent);
         delete p;
     }
     return 0;
@@ -304,6 +306,16 @@ case WM_APP_GET_DEVICE:{
     // Example if you track it as g_devnum:
     // return (LRESULT)g_devnum;
     return (LRESULT)g_dev_index;
+}
+
+case WM_APP_STOP: {
+    // Hard stop: clear pending queue and reset audio so current utterance halts
+    while (!g_q.empty()) g_q.pop_front();
+    tts_audio_reset(g_eng);               // immediate stop/reset (SAPI4)
+    g_eng.inflight.store(0);              // best-effort local reset
+    gui_notify_tts_state(false);          // reflect back to GUI
+    if (g_verbose) dprintf("[stop] hard stop + clear queue");
+    return 0;
 }
 
 
@@ -436,6 +448,8 @@ log_set_verbose(g_verbose);
 
     if (g_cli_gui) {
         HWND hDlg = create_main_dialog(hInst, g_hwnd);
+        gui_set_app_hwnd(g_hwnd);
+
 
         // Seed: current device index -> combo selection
         if (hDlg){

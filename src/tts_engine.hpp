@@ -58,6 +58,17 @@ inline void tts_audio_reset (Engine& e){ if (e.cw) e.cw->AudioReset(); }
 inline void tts_audio_pause (Engine& e){ if (e.cw) e.cw->AudioPause(); }
 inline void tts_audio_resume(Engine& e){ if (e.cw) e.cw->AudioResume(); }
 
+// UI → engine (instant): volume
+void tts_set_volume_percent(Engine& e, int pct);
+
+// UI → stash for next utterance (no immediate engine I/O)
+void tts_set_rate_percent_ui(int pct);
+void tts_set_pitch_percent_ui(int pct);
+
+// Build vendor tag prefix for next utterance ("" if defaults)
+std::wstring tts_vendor_prefix_from_ui();
+
+
 // PosnGet support
 bool tts_supports_posn(Engine& e);
 int  tts_posn_get     (Engine& e, DWORD* pos_out /* low 32 bits ok */);
@@ -66,14 +77,6 @@ int  tts_posn_get     (Engine& e, DWORD* pos_out /* low 32 bits ok */);
 inline void tts_prepare_next_file_chunk(Engine&){ /* WAV capture disabled */ }
 inline void tts_file_flush(Engine&){ /* WAV capture disabled */ }
 
-// ---- Attribute helpers (UI → engine) ----
-// Map UI 0..100 to SAPI4 volume (0..65535)
-inline void tts_set_volume_percent(Engine& e, int pct){
-    if (!e.attrsW) return;
-    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-    DWORD v = (DWORD)((pct * 65535) / 100);
-    (void)e.attrsW->VolumeSet(v);
-}
 
 // Prefer vendor sticky tags for speed/pitch (FlexTalk honors these best)
 inline void tts_set_rate_percent(Engine& e, int pct){

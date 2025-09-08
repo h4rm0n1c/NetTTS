@@ -39,15 +39,14 @@
 
 
 static HWND s_mainDlg = nullptr;
+static HWND s_appWnd  = nullptr;  // <- hidden app window (owner of WndProc)
 
-HWND gui_get_main_hwnd(){
-    return s_mainDlg;
-}
+HWND gui_get_main_hwnd(){ return s_mainDlg; }
+void gui_set_app_hwnd(HWND h){ s_appWnd = h; }
+
 
 void gui_notify_tts_state(bool busy){
-    if (s_mainDlg){
-        PostMessageW(s_mainDlg, WM_APP_TTS_STATE, busy ? 1 : 0, 0);
-    }
+    if (s_mainDlg) PostMessageW(s_mainDlg, WM_APP_TTS_STATE, busy ? 1 : 0, 0);
 }
 
 
@@ -84,6 +83,15 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
             SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)i);
         }
 
+    // Vol 0..100, Rate 30..200 (100=1.00), Pitch 50..150 (100=1.00)
+    SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETRANGE, TRUE, MAKELONG(0, 100));
+    SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(30, 200));
+    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETRANGE, TRUE, MAKELONG(50, 150));
+
+    SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETPOS, TRUE, 100);
+    SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, 100);
+    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS, TRUE, 100);
+
         // Ask main for current device index and select it
         int current = (int)SendMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_GET_DEVICE, 0, 0);
         // find item whose itemdata == current
@@ -93,13 +101,33 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
             if (val == current){ SendMessageW(hCombo, CB_SETCURSEL, k, 0); break; }
         }
 
+        SendMessageW(hDlg, WM_HSCROLL, 0, 0);
+
         return TRUE;
     }
 
     case WM_HSCROLL:{
-        // (your slider code unchanged; ensure you Post WM_APP_ATTRS with GuiAttrs)
-        return TRUE;
+    const HWND hVol   = GetDlgItem(hDlg, IDC_VOL_SLIDER);
+    const HWND hRate  = GetDlgItem(hDlg, IDC_RATE_SLIDER);
+    const HWND hPitch = GetDlgItem(hDlg, IDC_PITCH_SLIDER);
+
+    const int vol   = (int)SendMessageW(hVol,   TBM_GETPOS, 0, 0);   // 0..100
+    const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 30..200
+    const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 50..150
+
+    // Update the numeric labels:
+    wchar_t b[32];
+    _snwprintf(b, 31, L"%d%%", vol);        SetDlgItemTextW(hDlg, IDC_VOL_VAL,  b);
+    _snwprintf(b, 31, L"%.2f", rate/100.0); SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
+    _snwprintf(b, 31, L"%.2f", pitch/100.0);SetDlgItemTextW(hDlg, IDC_PITCH_VAL,b);
+
+    if (s_appWnd){
+        auto* p = new GuiAttrs{ vol, rate, pitch };
+        PostMessageW(s_appWnd, WM_APP_ATTRS, 0, (LPARAM)p);
     }
+    return TRUE;
+}
+
 
 case WM_APP_SET_SERVER_FIELDS: {
     auto* f = (GuiServerFields*)lParam;
@@ -129,13 +157,12 @@ case WM_APP_SET_SERVER_FIELDS: {
                     std::string u8(m, '\0');
                     WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), u8.data(), m, nullptr, nullptr);
                     auto* payload = new std::string(std::move(u8));
-                    PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_SPEAK, 0, (LPARAM)payload);
+                    if (s_appWnd) PostMessageW(s_appWnd, WM_APP_SPEAK, 0, (LPARAM)payload);
                     s_tts_busy = true;
                     SetDlgItemTextW(hDlg, IDC_BTN_SPEAK, L"Stop");
                 }
             } else {
-                auto* payload = new std::string("/stop");
-                PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_SPEAK, 0, (LPARAM)payload);
+                if (s_appWnd) PostMessageW(s_appWnd, WM_APP_STOP, 0, 0);
                 s_tts_busy = false;
                 SetDlgItemTextW(hDlg, IDC_BTN_SPEAK, L"Speak");
             }
@@ -147,8 +174,8 @@ case WM_APP_SET_SERVER_FIELDS: {
             int sel = (int)SendMessageW(hCombo, CB_GETCURSEL, 0, 0);
             if (sel >= 0){
                 int devIndex = (int)SendMessageW(hCombo, CB_GETITEMDATA, sel, 0);
-                auto* p = new GuiDeviceSel{ devIndex };
-                PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_DEVICE, 0, (LPARAM)p);
+                auto* payload = new GuiDeviceSel{ devIndex };
+                if (s_appWnd) PostMessageW(s_appWnd, WM_APP_DEVICE, 0, (LPARAM)payload);
             }
             return TRUE;
         }
@@ -162,7 +189,8 @@ case WM_APP_SET_SERVER_FIELDS: {
             wcsncpy(req->host, host, 63); req->host[63]=0;
             req->port = p;
             req->start = s_server_running ? 0 : 1;
-            PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_SERVER_REQ, 0, (LPARAM)req);
+            if (s_appWnd) PostMessageW(s_appWnd, WM_APP_SERVER_REQ, 0, (LPARAM)req);
+
             return TRUE;
         }
 
@@ -172,7 +200,7 @@ case WM_APP_SET_SERVER_FIELDS: {
         if (sel >= 0){
             int devIndex = (int)SendMessageW(hCombo, CB_GETITEMDATA, sel, 0);
             auto* p = new GuiDeviceSel{ devIndex };
-            PostMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_DEVICE, 0, (LPARAM)p);
+            if (s_appWnd) PostMessageW(s_appWnd, WM_APP_DEVICE, 0, (LPARAM)p);
         }
         return TRUE;
     }
@@ -223,7 +251,7 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
     HWND h = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_MAIN), parent, MainDlgProc, 0);
     if (h){
         s_mainDlg = h;                // <- remember it
-        // g_hwnd = CreateWindowExW(...);
+        if (parent) s_appWnd = parent;      // <- talk to the hidden app window
         ShowWindow(h, SW_SHOW);
     }
     return h;
