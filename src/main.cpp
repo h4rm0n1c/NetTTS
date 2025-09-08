@@ -25,8 +25,8 @@
 #define WM_APP_SPEAK             (WM_APP + 1)
 #define WM_APP_TTS_TEXT_DONE     (WM_APP + 7)
 #define WM_APP_TTS_TEXT_START    (WM_APP + 8)
-#define WM_APP_INIT              (WM_APP + 9)
-#define WM_APP_INIT_DONE         (WM_APP + 10)
+#define WM_APP_INIT              (WM_APP + 21)
+#define WM_APP_INIT_DONE         (WM_APP + 22)
 
 // ------------------------------------------------------------------
 // CLI state
