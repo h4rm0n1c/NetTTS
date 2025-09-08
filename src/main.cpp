@@ -36,8 +36,6 @@ static int          g_port          = 5555;
 static int          g_dev_index     = -1;
 static int          g_posn_poll_ms  = 0;
 static bool         g_selftest      = false;
-static bool         g_to_file       = false;
-static std::wstring g_wavpath;
 
 // App state
 static HWND         g_hwnd          = nullptr;
@@ -272,7 +270,7 @@ case WM_APP_DEVICE: {
         if (new_idx != g_dev_index){
             g_dev_index = new_idx;
             // Re-init the engine on the new device
-            tts_init(g_eng, g_dev_index, g_to_file, g_wavpath.c_str());
+            tts_init(g_eng, g_dev_index);
         }
         // reflect back to GUI so the combo shows the actual device
         if (HWND dlg = gui_get_main_hwnd()){
@@ -404,7 +402,6 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
         else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
         else if (a==L"--posn-poll-ms" && i+1<argc) g_posn_poll_ms = _wtoi(argv[++i]);
         else if (a==L"--selftest") g_selftest=true;
-        else if (a==L"--file" && i+1<argc){ g_to_file=true; g_wavpath = argv[++i]; }
     }
     LocalFree(argv);
 }
@@ -466,7 +463,7 @@ log_set_verbose(g_verbose);
         }
     }
 
-    if (!tts_init(g_eng, g_dev_index, g_to_file, g_to_file ? g_wavpath.c_str() : nullptr)){
+    if (!tts_init(g_eng, g_dev_index)){
         MessageBeep(MB_ICONERROR);
         return 2;
     }
