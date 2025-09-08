@@ -14,7 +14,7 @@ CXXFLAGS ?= -O2 -s -DUNICODE -D_UNICODE -mwindows -municode
 # Optional extras:
 # CXXFLAGS += -Wall -Wextra -pipe
 
-LIBS := -static-libgcc -static-libstdc++ -lole32 -loleaut32 -lwinmm -lws2_32 -lcomctl32 -luuid
+LIBS := -static-libgcc -static-libstdc++ -lole32 -loleaut32 -lwinmm -lws2_32 -lcomctl32 -luuid -lmmdevapi -lpropsys
 
 SRC_DIR   := src
 BUILD_DIR := build

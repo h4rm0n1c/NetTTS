@@ -3,6 +3,16 @@
 #include "gui.hpp"
 #include "help.hpp"   // for get_help_text_w()
 #include <mmsystem.h>
+#include <mmdeviceapi.h>
+#include <initguid.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propvarutil.h>
+#ifndef DRV_QUERYDEVICEINTERFACESIZE
+# define DRV_QUERYDEVICEINTERFACESIZE 0x800
+#endif
+#ifndef DRV_QUERYDEVICEINTERFACE
+# define DRV_QUERYDEVICEINTERFACE 0x801
+#endif
 
 #ifndef IDD_HELP
 #define IDD_HELP       101
@@ -70,11 +80,41 @@ static DWORD WINAPI enum_dev_thread(void* param){
     HWND hDlg = (HWND)param;
     PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)-1, (LPARAM)new std::wstring(L"(Default output device)"));
 
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    IMMDeviceEnumerator* pEnum = nullptr;
+    CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pEnum));
+
     UINT ndev = waveOutGetNumDevs();
     for (UINT i = 0; i < ndev; i++){
-        WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
-        PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(caps.szPname));
+        std::wstring name;
+        if (pEnum){
+            WCHAR id[512]; DWORD need = 0;
+            if (waveOutMessage((HWAVEOUT)(UINT_PTR)i, DRV_QUERYDEVICEINTERFACESIZE, (DWORD_PTR)&need, 0) == MMSYSERR_NOERROR && need <= sizeof(id)){
+                if (waveOutMessage((HWAVEOUT)(UINT_PTR)i, DRV_QUERYDEVICEINTERFACE, (DWORD_PTR)id, need) == MMSYSERR_NOERROR){
+                    IMMDevice* dev = nullptr;
+                    if (SUCCEEDED(pEnum->GetDevice(id, &dev))){
+                        IPropertyStore* store = nullptr;
+                        if (SUCCEEDED(dev->OpenPropertyStore(STGM_READ, &store))){
+                            PROPVARIANT pv; PropVariantInit(&pv);
+                            if (SUCCEEDED(store->GetValue(PKEY_Device_FriendlyName, &pv))){
+                                name = pv.pwszVal;
+                                PropVariantClear(&pv);
+                            }
+                            store->Release();
+                        }
+                        dev->Release();
+                    }
+                }
+            }
+        }
+        if (name.empty()){
+            WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
+            name = caps.szPname;
+        }
+        PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(name));
     }
+    if (pEnum) pEnum->Release();
+    CoUninitialize();
 
     PostMessageW(hDlg, WM_APP_ENUMDEV_DONE, 0, 0);
     return 0;

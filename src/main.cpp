@@ -385,11 +385,9 @@ case WM_APP_TTS_TEXT_START:
 
 case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
-    if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
-        kick_if_idle();
-        if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
-            gui_notify_tts_state(false);  // <— GUI button → "Speak"
-        }
+    kick_if_idle();
+    if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
+        gui_notify_tts_state(false);  // <— GUI button → "Speak"
     }
     return 0;
 }
