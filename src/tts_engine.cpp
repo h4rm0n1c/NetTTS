@@ -124,11 +124,8 @@ struct BufSinkW : public ITTSBufNotifySink, public ITTSNotifySink {
 };
 
 // -----------------------------------------------------------
-// Voice selection + audio binding (WAV capture disabled)
-static bool select_voice_and_audio(Engine& e, int device_index, bool to_file, const wchar_t* wav_path){
-    // Remember flags but ignore file capture
-    e.to_file  = false;      // hard-disable WAV recording
-    e.wav_path = wav_path ? wav_path : L"";
+// Voice selection + audio binding
+static bool select_voice_and_audio(Engine& e, int device_index){
 
     ITTSFindW* findW = nullptr;
     HRESULT hr = CoCreateInstance(CLSID_TTSEnumerator, nullptr, CLSCTX_ALL, IID_ITTSFindW, (void**)&findW);
@@ -172,20 +169,15 @@ static bool select_voice_and_audio(Engine& e, int device_index, bool to_file, co
 
     // Probe PosnGet
     QWORD q=0; e.has_posn = SUCCEEDED(e.cw->PosnGet(&q));
-
-    // If user asked for --file, tell them it's disabled (once)
-    if (to_file && wav_path && *wav_path) {
-        dbg(L"[tts] WAV capture disabled; using device output only.");
-    }
     return true;
 }
 
 // -----------------------------------------------------------
 // API
-bool tts_init(Engine& e, int device_index, bool to_file, const wchar_t* wav_path){
+bool tts_init(Engine& e, int device_index){
     tts_shutdown(e);
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    if (!select_voice_and_audio(e, device_index, to_file, wav_path)) return false;
+    if (!select_voice_and_audio(e, device_index)) return false;
     dbg(L"[tts] init: PosnGet=%s", e.has_posn ? L"yes" : L"no");
     return true;
 }
