@@ -28,6 +28,10 @@
 #define IDC_EDIT_HOST    2301
 #define IDC_EDIT_PORT    2303
 #define IDC_BTN_SERVER   2304
+#define IDC_GRP_PROSODY  2403
+#define IDC_RAD_CLEAN    2500
+#define IDC_RAD_VOXLQ    2501
+#define IDC_RAD_VOXHQ    2502
 #endif
 
 #ifndef WM_APP
@@ -146,6 +150,12 @@ case WM_APP_SET_SERVER_FIELDS: {
 
         if (id == IDC_BTN_HELP){ show_help_dialog(hInst, hDlg); return TRUE; }
 
+        else if ((id == IDC_RAD_CLEAN || id == IDC_RAD_VOXLQ || id == IDC_RAD_VOXHQ) && code == BN_CLICKED){
+            int mode = (id==IDC_RAD_CLEAN) ? 0 : (id==IDC_RAD_VOXLQ ? 1 : 2);
+            if (s_appWnd) PostMessageW(s_appWnd, WM_APP_PROSODY, mode, 0);
+            return TRUE;
+        }
+
         else if (id == IDC_BTN_SPEAK && code == BN_CLICKED){
             if (!s_tts_busy){
                 // gather text, post WM_APP_SPEAK with std::string*
@@ -234,6 +244,13 @@ case WM_APP_SET_SERVER_FIELDS: {
         return TRUE;
     }
 
+    case WM_APP_PROSODY_STATE:{
+        CheckDlgButton(hDlg, IDC_RAD_CLEAN,  wParam==0);
+        CheckDlgButton(hDlg, IDC_RAD_VOXLQ, wParam==1);
+        CheckDlgButton(hDlg, IDC_RAD_VOXHQ, wParam==2);
+        return TRUE;
+    }
+
     case WM_CLOSE:
         PostQuitMessage(0);
         DestroyWindow(hDlg);
@@ -277,14 +294,16 @@ if (hSmall) SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hSmall);
         return FALSE; // we set focus
     }
     case WM_COMMAND:
-        if(LOWORD(wParam)==IDOK || LOWORD(wParam)==IDCANCEL){ EndDialog(hDlg, IDOK); return TRUE; }
+        if(LOWORD(wParam)==IDOK || LOWORD(wParam)==IDCANCEL){ DestroyWindow(hDlg); return TRUE; }
         break;
     case WM_CLOSE:
-        EndDialog(hDlg, IDOK); return TRUE;
+        DestroyWindow(hDlg); return TRUE;
     }
     return FALSE;
 }
 
 bool show_help_dialog(HINSTANCE hInst, HWND parent){
-    return DialogBoxParamW(hInst, MAKEINTRESOURCEW(IDD_HELP), parent, HelpDlgProc, 0) == IDOK;
+    HWND h = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_HELP), parent, HelpDlgProc, 0);
+    if (h){ ShowWindow(h, SW_SHOW); return true; }
+    return false;
 }

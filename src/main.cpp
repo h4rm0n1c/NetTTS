@@ -28,13 +28,14 @@
 
 // ------------------------------------------------------------------
 // CLI state
-static bool         g_headless      = false;
+static bool         g_headless      = false; // --runserver
 static bool         g_verbose       = false;
 static std::wstring g_host          = L"127.0.0.1";
 static int          g_port          = 5555;
 static int          g_dev_index     = -1;
 static int          g_posn_poll_ms  = 0;
 static bool         g_selftest      = false;
+static bool         g_log_set       = false; // --log PATH
 
 // App state
 static HWND         g_hwnd          = nullptr;
@@ -44,7 +45,6 @@ static LONG         g_inflight_local= 0;
 static bool g_vox_enabled = false;
 static bool g_vox_clean   = false; 
 
-static bool g_cli_gui   = false;  // --gui (modeless dialog on top of our hidden app window)
 static bool g_cli_help  = false;  // --help (print/show help then exit)
 
 // ------------------------------------------------------------------
@@ -280,6 +280,14 @@ case WM_APP_DEVICE: {
     return 0;
 }
 
+case WM_APP_PROSODY: {
+    int mode = (int)w;
+    if (mode == 0){ g_vox_enabled = false; g_vox_clean = false; }
+    else if (mode == 1){ g_vox_enabled = true;  g_vox_clean = false; }
+    else if (mode == 2){ g_vox_enabled = true;  g_vox_clean = true; }
+    return 0;
+}
+
 case WM_APP_SERVER_REQ: {
     auto* r = (GuiServerReq*)l; // struct from gui.hpp (host/port/start)
     if (r){
@@ -373,7 +381,7 @@ static void parse_cmdline(){
     if (!argv) return;
     for (int i=1;i<argc;i++){
         std::wstring a = argv[i];
-        if (a==L"--gui") { g_cli_gui = true; } else if (a==L"--help" || a == L"-h" || a == L"/?") { g_cli_help = true; }
+        if (a==L"--help" || a == L"-h" || a == L"/?") { g_cli_help = true; }
 else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
     if (!g_verbose) AllocConsole(); // or your own console attach
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -391,8 +399,9 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
     }
     ExitProcess(0);
 }
-        else if (a==L"--headless") g_headless=true;
+        else if (a==L"--runserver") g_headless=true;
         else if (a==L"--verbose") g_verbose=true;
+        else if (a==L"--log" && i+1<argc){ log_set_path(argv[++i]); g_log_set = true; }
         else if (a==L"--vox"){ g_vox_enabled = true; }
         else if (a==L"--voxclean") { g_vox_enabled = true; g_vox_clean = true; }
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
@@ -412,17 +421,15 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
 
     parse_cmdline();
 
-// Re-attach/allocate a console so printf/dprintf show up even with -mwindows
-log_attach_console();
-// Honor --verbose (or --console) like before
-log_set_verbose(g_verbose);
+    if (g_verbose || g_cli_help) log_attach_console();
+    log_set_verbose(g_verbose);
 
-    
     if (g_cli_help) {
-        show_help_and_exit(false);   // prints full help (and attaches a console if needed)
-        return 0;                    // (defensive; show_help_and_exit() already exits)
+        show_help_and_exit(false);
+        return 0;
     }
 
+    bool show_gui = !(g_verbose && !g_log_set);
 
     // Window
     WNDCLASSEXW wc{sizeof(wc)};
@@ -441,23 +448,23 @@ log_set_verbose(g_verbose);
                              nullptr, nullptr, hInst, nullptr);
     ShowWindow(g_hwnd, SW_HIDE);
 
-    if (g_cli_gui) {
+    if (show_gui) {
         HWND hDlg = create_main_dialog(hInst, g_hwnd);
         gui_set_app_hwnd(g_hwnd);
 
-
-        // Seed: current device index -> combo selection
         if (hDlg){
             PostMessageW(hDlg, WM_APP_DEVICE_STATE, (WPARAM)g_dev_index, 0);
 
-            // Seed: host/port fields from CLI (g_host, g_port)
             auto* f = new GuiServerFields{};
             wcsncpy(f->host, g_host.c_str(), 63); f->host[63]=0;
             f->port = g_port;
             PostMessageW(hDlg, WM_APP_SET_SERVER_FIELDS, 0, (LPARAM)f);
 
-            // Seed: server button from actual running state
             PostMessageW(hDlg, WM_APP_SERVER_STATE, server_is_running() ? 1 : 0, 0);
+
+            int mode = 0;
+            if (g_vox_enabled) mode = g_vox_clean ? 2 : 1;
+            PostMessageW(hDlg, WM_APP_PROSODY_STATE, mode, 0);
         }
     }
 

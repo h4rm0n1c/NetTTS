@@ -47,6 +47,13 @@
 #define WM_APP_STOP         (WM_APP + 18)   // GUI → main: hard stop + clear queue
 #endif
 
+#ifndef WM_APP_PROSODY
+#define WM_APP_PROSODY      (WM_APP + 19)   // GUI → main: wParam: 0=clean,1=vox LQ,2=vox HQ
+#endif
+#ifndef WM_APP_PROSODY_STATE
+#define WM_APP_PROSODY_STATE (WM_APP + 20)  // main → GUI: wParam: mode
+#endif
+
 // ---- POD payloads ----
 struct GuiAttrs { int vol_percent; int rate_percent; int pitch_percent; };
 struct GuiDeviceSel { int index; /* -1 = default */ };
