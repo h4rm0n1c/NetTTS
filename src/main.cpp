@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <thread>
 #include "log.hpp"
 #include "vox_parser.hpp"
 #include "tts_engine.hpp"
@@ -254,28 +255,23 @@ static void enqueue_incoming_text(const std::string& line){
     if (was_idle) gui_notify_tts_state(true);
 }
 
-// Background initialization: TTS setup and optional server start
-static DWORD WINAPI init_thread(void*){
-    bool ok = tts_init(g_eng, g_dev_index);
-    bool started = false;
-    if (ok){
-        tts_set_notify_hwnd(g_eng, g_hwnd);
-        if (g_runserver){
-            started = server_start(g_host, g_port, g_hwnd);
-        }
-    }
-    PostMessageW(g_hwnd, WM_APP_INIT_DONE, started ? 1 : 0, ok ? 1 : 0);
-    return 0;
-}
-
 // ------------------------------------------------------------------
 // WndProc
 static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
     switch(m){
 
 case WM_APP_INIT:{
-    HANDLE th = CreateThread(nullptr, 0, init_thread, nullptr, 0, nullptr);
-    if (th) CloseHandle(th);
+    std::thread([]{
+        bool ok = tts_init(g_eng, g_dev_index);
+        bool started = false;
+        if (ok){
+            tts_set_notify_hwnd(g_eng, g_hwnd);
+            if (g_runserver){
+                started = server_start(g_host, g_port, g_hwnd);
+            }
+        }
+        PostMessageW(g_hwnd, WM_APP_INIT_DONE, started ? 1 : 0, ok ? 1 : 0);
+    }).detach();
     return 0;
 }
 
