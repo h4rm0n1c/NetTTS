@@ -26,6 +26,7 @@
 #define WM_APP_TTS_TEXT_DONE     (WM_APP + 7)
 #define WM_APP_TTS_TEXT_START    (WM_APP + 8)
 #define WM_APP_INIT              (WM_APP + 21)
+#define WM_APP_INIT_DONE         (WM_APP + 22)
 
 // ------------------------------------------------------------------
 // CLI state
@@ -250,29 +251,43 @@ static void enqueue_incoming_text(const std::string& line){
     if (was_idle) gui_notify_tts_state(true);
 }
 
+// Background initialization: TTS setup and optional server start
+static DWORD WINAPI init_thread(void*){
+    bool ok = tts_init(g_eng, g_dev_index);
+    bool started = false;
+    if (ok){
+        tts_set_notify_hwnd(g_eng, g_hwnd);
+        if (g_runserver){
+            started = server_start(g_host, g_port, g_hwnd);
+        }
+    }
+    PostMessageW(g_hwnd, WM_APP_INIT_DONE, started ? 1 : 0, ok ? 1 : 0);
+    return 0;
+}
+
 // ------------------------------------------------------------------
 // WndProc
 static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
     switch(m){
 
 case WM_APP_INIT:{
-    if (!tts_init(g_eng, g_dev_index)){
+    HANDLE th = CreateThread(nullptr, 0, init_thread, nullptr, 0, nullptr);
+    if (th) CloseHandle(th);
+    return 0;
+}
+
+case WM_APP_INIT_DONE:{
+    bool started = (w != 0);
+    bool ok = (l != 0);
+    if (!ok){
         MessageBeep(MB_ICONERROR);
         PostQuitMessage(2);
         return 0;
     }
-    tts_set_notify_hwnd(g_eng, g_hwnd);
-
-    bool started = false;
-    if (g_runserver){
-        started = server_start(g_host, g_port, g_hwnd);
-    }
     if (HWND dlg = gui_get_main_hwnd()){
         PostMessageW(dlg, WM_APP_SERVER_STATE, started ? 1 : 0, 0);
     }
-
     if (g_posn_poll_ms > 0 && tts_supports_posn(g_eng)) start_posn_poll();
-
     if (g_selftest){
         enqueue_selftest();
         kick_if_idle();
