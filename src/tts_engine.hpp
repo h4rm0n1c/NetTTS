@@ -55,11 +55,11 @@ inline void tts_audio_reset (Engine& e){ if (e.cw) e.cw->AudioReset(); }
 inline void tts_audio_pause (Engine& e){ if (e.cw) e.cw->AudioPause(); }
 inline void tts_audio_resume(Engine& e){ if (e.cw) e.cw->AudioResume(); }
 
-// UI → engine (instant): volume
+// UI → engine (instant)
 void tts_set_volume_percent(Engine& e, int pct);
+void tts_set_rate_percent_ui(Engine& e, int pct);
 
 // UI → stash for next utterance (no immediate engine I/O)
-void tts_set_rate_percent_ui(int pct);
 void tts_set_pitch_percent_ui(int pct);
 
 // Build vendor tag prefix for next utterance ("" if defaults)

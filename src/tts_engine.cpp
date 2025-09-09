@@ -11,14 +11,15 @@
 #endif
 
 // Stashed UI values (lazy apply on next utterance)
-static std::atomic<int> g_ui_rate_pct{100};   // 30..200 (100 = 1.00)
 static std::atomic<int> g_ui_pitch_pct{100};  // 50..150 (100 = 1.00)
 
 
 
-void tts_set_rate_percent_ui(int pct){
-    if (pct < 30) pct = 30; if (pct > 200) pct = 200;
-    g_ui_rate_pct.store(pct, std::memory_order_relaxed);
+void tts_set_rate_percent_ui(Engine& e, int pct){
+    if (!e.attrsW) return;
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    DWORD v = (DWORD)((pct * 65535) / 100);
+    (void)e.attrsW->SpeedSet(v);
 }
 void tts_set_pitch_percent_ui(int pct){
     if (pct < 50) pct = 50; if (pct > 150) pct = 150;
@@ -35,18 +36,11 @@ void tts_set_volume_percent(Engine& e, int pct){
 
 // Build a tag prefix to prepend at speak time
 std::wstring tts_vendor_prefix_from_ui(){
-    const int r = g_ui_rate_pct.load(std::memory_order_relaxed);
     const int p = g_ui_pitch_pct.load(std::memory_order_relaxed);
-    if (r == 100 && p == 100) return L"";
+    if (p == 100) return L"";
     std::wstring out;
-    if (r != 100){
-        wchar_t buf[32]; _snwprintf(buf, 31, L" \\!R%.2f ", r / 100.0);
-        out += buf;
-    }
-    if (p != 100){
-        wchar_t buf[32]; _snwprintf(buf, 31, L" \\!%%%.2f ", p / 100.0);
-        out += buf;
-    }
+    wchar_t buf[32]; _snwprintf(buf, 31, L" \\!%%%.2f ", p / 100.0);
+    out += buf;
     return out;
 }
 
