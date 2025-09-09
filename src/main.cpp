@@ -26,7 +26,6 @@
 #define WM_APP_TTS_TEXT_DONE     (WM_APP + 7)
 #define WM_APP_TTS_TEXT_START    (WM_APP + 8)
 #define WM_APP_INIT              (WM_APP + 21)
-#define WM_APP_INIT_DONE         (WM_APP + 22)
 
 // ------------------------------------------------------------------
 // CLI state
@@ -251,10 +250,15 @@ static void enqueue_incoming_text(const std::string& line){
     if (was_idle) gui_notify_tts_state(true);
 }
 
-// Threaded initialization so the UI stays responsive
-static DWORD WINAPI init_thread(LPVOID){
+// ------------------------------------------------------------------
+// WndProc
+static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
+    switch(m){
+
+case WM_APP_INIT:{
     if (!tts_init(g_eng, g_dev_index)){
-        PostMessageW(g_hwnd, WM_APP_INIT_DONE, 0, 0);
+        MessageBeep(MB_ICONERROR);
+        PostQuitMessage(2);
         return 0;
     }
     tts_set_notify_hwnd(g_eng, g_hwnd);
@@ -274,27 +278,6 @@ static DWORD WINAPI init_thread(LPVOID){
         kick_if_idle();
         std::wstring literal = L"Untagged literal: \\!sf30 should be spoken literally.";
         (void)tts_speak(g_eng, literal, /*force_tagged*/false);
-    }
-
-    PostMessageW(g_hwnd, WM_APP_INIT_DONE, 1, 0);
-    return 0;
-}
-
-// ------------------------------------------------------------------
-// WndProc
-static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
-    switch(m){
-
-case WM_APP_INIT:{
-    HANDLE th = CreateThread(nullptr, 0, init_thread, nullptr, 0, nullptr);
-    if (th) CloseHandle(th);
-    return 0;
-}
-
-case WM_APP_INIT_DONE:{
-    if (w == 0){
-        MessageBeep(MB_ICONERROR);
-        PostQuitMessage(2);
     }
     return 0;
 }
