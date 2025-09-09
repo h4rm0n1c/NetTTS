@@ -18,8 +18,8 @@ static std::atomic<int> g_ui_pitch_pct{100};  // 50..150 (100 = 1.00)
 void tts_set_rate_percent_ui(Engine& e, int pct){
     if (!e.attrsW) return;
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-    DWORD v = (DWORD)((pct * 65535) / 100);
-    (void)e.attrsW->SpeedSet(v);
+    // SAPI4's SpeedSet expects 0..100 (like legacy UI sliders)
+    (void)e.attrsW->SpeedSet((DWORD)pct);
 }
 void tts_set_pitch_percent_ui(int pct){
     if (pct < 50) pct = 50; if (pct > 150) pct = 150;
