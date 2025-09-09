@@ -27,6 +27,9 @@
 #define WM_APP_TTS_TEXT_START    (WM_APP + 8)
 #define WM_APP_INIT              (WM_APP + 21)
 #define WM_APP_INIT_DONE         (WM_APP + 22)
+#ifndef WM_APP_ENUMDEV
+# define WM_APP_ENUMDEV          (WM_APP + 50)
+#endif
 
 // ------------------------------------------------------------------
 // CLI state
@@ -286,6 +289,7 @@ case WM_APP_INIT_DONE:{
     }
     if (HWND dlg = gui_get_main_hwnd()){
         PostMessageW(dlg, WM_APP_SERVER_STATE, started ? 1 : 0, 0);
+        PostMessageW(dlg, WM_APP_ENUMDEV, 0, 0);
     }
     if (g_posn_poll_ms > 0 && tts_supports_posn(g_eng)) start_posn_poll();
     if (g_selftest){

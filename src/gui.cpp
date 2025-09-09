@@ -155,6 +155,8 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, 100);
     SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS, TRUE, 100);
 
+        HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
+        EnableWindow(hCombo, FALSE);
         SendMessageW(hDlg, WM_HSCROLL, 0, 0);
         return TRUE;
     }
@@ -184,6 +186,7 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_APP_ENUMDEV:{
         HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
         SendMessageW(hCombo, CB_RESETCONTENT, 0, 0);
+        EnableWindow(hCombo, FALSE);
         HANDLE th = CreateThread(nullptr, 0, enum_dev_thread, hDlg, 0, nullptr);
         if (th) CloseHandle(th);
         return TRUE;
@@ -206,6 +209,7 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
             int val = (int)SendMessageW(hCombo, CB_GETITEMDATA, k, 0);
             if (val == current){ SendMessageW(hCombo, CB_SETCURSEL, k, 0); break; }
         }
+        EnableWindow(hCombo, TRUE);
         return TRUE;
     }
     case WM_APP_SET_SERVER_FIELDS: {
@@ -346,7 +350,6 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
         if (parent) s_appWnd = parent;      // <- talk to the hidden app window
         ShowWindow(h, SW_SHOW);
         UpdateWindow(h);                       // ensure initial paint
-        PostMessageW(h, WM_APP_ENUMDEV, 0, 0); // enumerate devices in background
     }
     return h;
 }
