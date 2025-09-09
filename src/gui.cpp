@@ -7,12 +7,6 @@
 #include <initguid.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <propvarutil.h>
-#ifndef DRV_QUERYDEVICEINTERFACESIZE
-# define DRV_QUERYDEVICEINTERFACESIZE 0x800
-#endif
-#ifndef DRV_QUERYDEVICEINTERFACE
-# define DRV_QUERYDEVICEINTERFACE 0x801
-#endif
 
 #ifndef IDD_HELP
 #define IDD_HELP       101
@@ -79,39 +73,45 @@ void gui_notify_tts_state(bool busy){
 static DWORD WINAPI enum_dev_thread(void* param){
     HWND hDlg = (HWND)param;
     PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)-1, (LPARAM)new std::wstring(L"(Default output device)"));
-
+    // Enumerate render endpoints with MMDevice to avoid the 32-char limit of
+    // waveOutGetDevCaps. Fall back to WinMM caps if the API isn't available.
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     IMMDeviceEnumerator* pEnum = nullptr;
-    CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pEnum));
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pEnum));
+    bool used_mm = false;
 
-    UINT ndev = waveOutGetNumDevs();
-    for (UINT i = 0; i < ndev; i++){
-        std::wstring name;
-        if (pEnum){
-            WCHAR id[512]; DWORD need = 0;
-            if (waveOutMessage((HWAVEOUT)(UINT_PTR)i, DRV_QUERYDEVICEINTERFACESIZE, (DWORD_PTR)&need, 0) == MMSYSERR_NOERROR && need <= sizeof(id)){
-                if (waveOutMessage((HWAVEOUT)(UINT_PTR)i, DRV_QUERYDEVICEINTERFACE, (DWORD_PTR)id, need) == MMSYSERR_NOERROR){
-                    IMMDevice* dev = nullptr;
-                    if (SUCCEEDED(pEnum->GetDevice(id, &dev))){
-                        IPropertyStore* store = nullptr;
-                        if (SUCCEEDED(dev->OpenPropertyStore(STGM_READ, &store))){
-                            PROPVARIANT pv; PropVariantInit(&pv);
-                            if (SUCCEEDED(store->GetValue(PKEY_Device_FriendlyName, &pv))){
-                                name = pv.pwszVal;
-                                PropVariantClear(&pv);
-                            }
-                            store->Release();
+    if (SUCCEEDED(hr) && pEnum){
+        IMMDeviceCollection* col = nullptr;
+        if (SUCCEEDED(pEnum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &col))){
+            UINT count = 0; col->GetCount(&count);
+            for (UINT i=0; i<count; ++i){
+                IMMDevice* dev = nullptr;
+                if (SUCCEEDED(col->Item(i, &dev))){
+                    std::wstring name;
+                    IPropertyStore* store = nullptr;
+                    if (SUCCEEDED(dev->OpenPropertyStore(STGM_READ, &store))){
+                        PROPVARIANT pv; PropVariantInit(&pv);
+                        if (SUCCEEDED(store->GetValue(PKEY_Device_FriendlyName, &pv))){
+                            name = pv.pwszVal;
+                            PropVariantClear(&pv);
                         }
-                        dev->Release();
+                        store->Release();
                     }
+                    dev->Release();
+                    PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(name));
                 }
             }
+            col->Release();
+            used_mm = true;
         }
-        if (name.empty()){
+    }
+
+    if (!used_mm){
+        UINT ndev = waveOutGetNumDevs();
+        for (UINT i=0; i<ndev; ++i){
             WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
-            name = caps.szPname;
+            PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(caps.szPname));
         }
-        PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(name));
     }
     if (pEnum) pEnum->Release();
     CoUninitialize();
@@ -194,7 +194,7 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     }
     case WM_APP_ENUMDEV_DONE:{
         HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
-        int current = (int)SendMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_GET_DEVICE, 0, 0);
+        int current = s_appWnd ? (int)SendMessageW(s_appWnd, WM_APP_GET_DEVICE, 0, 0) : -1;
         int count = (int)SendMessageW(hCombo, CB_GETCOUNT, 0, 0);
         for (int k=0; k<count; k++){
             int val = (int)SendMessageW(hCombo, CB_GETITEMDATA, k, 0);

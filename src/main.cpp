@@ -231,6 +231,9 @@ static void log_vox_transform(const std::string& in_u8, const std::wstring& out_
 
 // Enqueue one inbound line, applying --vox if enabled.
 static void enqueue_incoming_text(const std::string& line){
+    bool was_idle = (g_eng.inflight.load(std::memory_order_relaxed) == 0) && g_q.empty();
+    // If we were idle, the UI isn't showing "Stop" yet. Mark it busy right away
+    // so remote (TCP/CLI) speech reflects in the Speak/Stop button.
     if (g_vox_enabled) {
         // VOX: transform then push as a single chunk (no extra splitting)
         std::wstring w = u8_to_w(line);
@@ -245,6 +248,7 @@ static void enqueue_incoming_text(const std::string& line){
             expand_inline_pauses_and_enqueue(line);
     }
     kick_if_idle();
+    if (was_idle) gui_notify_tts_state(true);
 }
 
 // Threaded initialization so the UI stays responsive
