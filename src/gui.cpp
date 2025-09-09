@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <string>
+#include <vector>
+#include <cwchar>
 #include "gui.hpp"
 #include "help.hpp"   // for get_help_text_w()
 #include <mmsystem.h>
@@ -73,49 +75,53 @@ void gui_notify_tts_state(bool busy){
 static DWORD WINAPI enum_dev_thread(void* param){
     HWND hDlg = (HWND)param;
     PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)-1, (LPARAM)new std::wstring(L"(Default output device)"));
-    // Enumerate render endpoints with MMDevice to avoid the 32-char limit of
-    // waveOutGetDevCaps. Fall back to WinMM caps if the API isn't available.
+
+    std::vector<std::wstring> names;
+    UINT ndev = waveOutGetNumDevs();
+    names.reserve(ndev);
+    for (UINT i=0; i<ndev; ++i){
+        WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
+        names.emplace_back(caps.szPname);
+    }
+
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     IMMDeviceEnumerator* pEnum = nullptr;
-    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pEnum));
-    bool used_mm = false;
-
-    if (SUCCEEDED(hr) && pEnum){
+    if (SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pEnum))) && pEnum){
         IMMDeviceCollection* col = nullptr;
         if (SUCCEEDED(pEnum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &col))){
             UINT count = 0; col->GetCount(&count);
-            for (UINT i=0; i<count; ++i){
+            for (UINT j=0; j<count; ++j){
                 IMMDevice* dev = nullptr;
-                if (SUCCEEDED(col->Item(i, &dev))){
-                    std::wstring name;
+                if (SUCCEEDED(col->Item(j, &dev))){
+                    std::wstring fname;
                     IPropertyStore* store = nullptr;
                     if (SUCCEEDED(dev->OpenPropertyStore(STGM_READ, &store))){
                         PROPVARIANT pv; PropVariantInit(&pv);
                         if (SUCCEEDED(store->GetValue(PKEY_Device_FriendlyName, &pv))){
-                            name = pv.pwszVal;
+                            fname = pv.pwszVal;
                             PropVariantClear(&pv);
                         }
                         store->Release();
                     }
                     dev->Release();
-                    PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(name));
+                    for (UINT i=0; i<ndev; ++i){
+                        const auto& s = names[i];
+                        if (fname.size() >= s.size() && _wcsnicmp(fname.c_str(), s.c_str(), s.size())==0){
+                            names[i] = fname;
+                            break;
+                        }
+                    }
                 }
             }
             col->Release();
-            used_mm = true;
         }
+        pEnum->Release();
     }
-
-    if (!used_mm){
-        UINT ndev = waveOutGetNumDevs();
-        for (UINT i=0; i<ndev; ++i){
-            WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(i, &caps, sizeof(caps));
-            PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(caps.szPname));
-        }
-    }
-    if (pEnum) pEnum->Release();
     CoUninitialize();
 
+    for (UINT i=0; i<ndev; ++i){
+        PostMessageW(hDlg, WM_APP_ENUMDEV_ADD, (WPARAM)i, (LPARAM)new std::wstring(names[i]));
+    }
     PostMessageW(hDlg, WM_APP_ENUMDEV_DONE, 0, 0);
     return 0;
 }
