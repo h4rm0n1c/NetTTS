@@ -38,6 +38,7 @@ struct Engine {
 #endif
 #define WM_APP_TTS_TEXT_START    (WM_APP + 8)
 #define WM_APP_TTS_TEXT_DONE     (WM_APP + 7)
+#define WM_APP_TTS_AUDIO_DONE    (WM_APP + 21)
 
 // Init / shutdown
 bool tts_init   (Engine& e, int device_index /* -1 = default mapper */);

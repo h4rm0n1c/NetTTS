@@ -119,7 +119,13 @@ struct BufSinkW : public ITTSBufNotifySink, public ITTSNotifySink {
     // ---- ITTSNotifySink (QWORD tick times) ----
     STDMETHOD(AttribChanged)(DWORD)        { return S_OK; }
     STDMETHOD(AudioStart)(QWORD)           { return S_OK; }
-    STDMETHOD(AudioStop)(QWORD)            { return S_OK; }
+    STDMETHOD(AudioStop)(QWORD) {
+        if (m_eng) {
+            dbg(L"[tts] audio stop");
+            if (m_eng->notify_hwnd) PostMessageW(m_eng->notify_hwnd, WM_APP_TTS_AUDIO_DONE, 0, 0);
+        }
+        return S_OK;
+    }
     STDMETHOD(Visual)(QWORD, WCHAR, WCHAR, DWORD, PTTSMOUTH) { return S_OK; }
 };
 
