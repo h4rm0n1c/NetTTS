@@ -82,7 +82,7 @@ static void expand_inline_pauses_and_enqueue(const std::string& line){
     }
 }
 
-// Map leading “/rate N” and “/pitch N” to vendor tags (non-sticky)
+// Map leading “/rate N” to SpeedSet and “/pitch N” to vendor tags (non-sticky)
 static bool maybe_handle_inline_cmds(const std::string& line){
     auto is_space = [](char c){ return !!isspace((unsigned char)c); };
     size_t i=0, n=line.size(); while (i<n && is_space(line[i])) ++i;
@@ -97,9 +97,8 @@ static bool maybe_handle_inline_cmds(const std::string& line){
         size_t p = rest(j); int val=0; bool have=false;
         while (p<n && isdigit((unsigned char)line[p])) { have=true; val = val*10 + (line[p]-'0'); ++p; }
         if (have){
-            double scale = 2.0 - (1.9 * (std::min(std::max(val,0),100) / 100.0));
-            wchar_t t[64]; _snwprintf(t,63,L" \\!R%.2f ", scale);
-            g_q.push_back({ t }); g_q.push_back({ L" \\!br " });
+            val = std::min(std::max(val,0),100);
+            tts_set_rate_percent_ui(g_eng, val);
             return true;
         }
     } else if (kw=="pitch"){
@@ -254,7 +253,7 @@ case WM_APP_ATTRS:{
     auto* p = (GuiAttrs*)l;
     if (p){
         tts_set_volume_percent(g_eng,p->vol_percent);
-        tts_set_rate_percent_ui(p->rate_percent);
+        tts_set_rate_percent_ui(g_eng, p->rate_percent);
         tts_set_pitch_percent_ui(p->pitch_percent);
         delete p;
     }
