@@ -74,14 +74,14 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         SetDlgItemTextW(hDlg, IDC_BTN_SERVER, L"Start Server");
         SetDlgItemTextW(hDlg, IDC_BTN_SPEAK,  L"Speak");
 
-    // Vol 0..100, Rate 0..100, Pitch 50..150 (100=1.00)
+    // Vol 0..100, Rate 0..100, Pitch 0..100
     SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETRANGE, TRUE, MAKELONG(0, 100));
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(0, 100));
-    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETRANGE, TRUE, MAKELONG(50, 150));
+    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETRANGE, TRUE, MAKELONG(0, 100));
 
     SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETPOS, TRUE, 100);
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, 100);
-    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS, TRUE, 100);
+    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETPOS, TRUE, 50);
 
         // Enumerate audio output devices immediately
         HWND hCombo = GetDlgItem(hDlg, IDC_DEV_COMBO);
@@ -114,13 +114,13 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
         const int vol   = (int)SendMessageW(hVol,   TBM_GETPOS, 0, 0);   // 0..100
         const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 0..100
-        const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 50..150
+        const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 0..100
 
         // Update the numeric labels:
         wchar_t b[32];
-        _snwprintf(b, 31, L"%d%%", vol);        SetDlgItemTextW(hDlg, IDC_VOL_VAL,  b);
-        _snwprintf(b, 31, L"%d%%", rate);       SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
-        _snwprintf(b, 31, L"%.2f", pitch/100.0);SetDlgItemTextW(hDlg, IDC_PITCH_VAL,b);
+        _snwprintf(b, 31, L"%d%%", vol);   SetDlgItemTextW(hDlg, IDC_VOL_VAL,  b);
+        _snwprintf(b, 31, L"%d%%", rate);  SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
+        _snwprintf(b, 31, L"%d%%", pitch); SetDlgItemTextW(hDlg, IDC_PITCH_VAL,b);
 
         if (s_appWnd){
             auto* p = new GuiAttrs{ vol, rate, pitch };
@@ -137,8 +137,32 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         SetDlgItemTextW(hDlg, IDC_EDIT_PORT, buf);
         delete f;
     }
-    return TRUE;
-}
+        return TRUE;
+    }
+
+    case WM_APP_ATTRS_STATE:{
+        auto* p = (GuiAttrs*)lParam;
+        if (p){
+            const HWND hVol   = GetDlgItem(hDlg, IDC_VOL_SLIDER);
+            const HWND hRate  = GetDlgItem(hDlg, IDC_RATE_SLIDER);
+            const HWND hPitch = GetDlgItem(hDlg, IDC_PITCH_SLIDER);
+            wchar_t b[32];
+            if (p->vol_percent >= 0){
+                SendMessageW(hVol, TBM_SETPOS, TRUE, p->vol_percent);
+                _snwprintf(b,31,L"%d%%", p->vol_percent); SetDlgItemTextW(hDlg, IDC_VOL_VAL, b);
+            }
+            if (p->rate_percent >= 0){
+                SendMessageW(hRate, TBM_SETPOS, TRUE, p->rate_percent);
+                _snwprintf(b,31,L"%d%%", p->rate_percent); SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
+            }
+            if (p->pitch_percent >= 0){
+                SendMessageW(hPitch, TBM_SETPOS, TRUE, p->pitch_percent);
+                _snwprintf(b,31,L"%d%%", p->pitch_percent); SetDlgItemTextW(hDlg, IDC_PITCH_VAL, b);
+            }
+            delete p;
+        }
+        return TRUE;
+    }
 
     case WM_COMMAND:{
         const WORD id = LOWORD(wParam);

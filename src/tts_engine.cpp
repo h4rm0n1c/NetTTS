@@ -10,20 +10,17 @@
 #define WAVE_MAPPER ((UINT)-1)
 #endif
 
-// Stashed UI values (lazy apply on next utterance)
-static std::atomic<int> g_ui_pitch_pct{100};  // 50..150 (100 = 1.00)
-
-
-
 void tts_set_rate_percent_ui(Engine& e, int pct){
     if (!e.attrsW) return;
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-    // SAPI4's SpeedSet expects 0..100 (like legacy UI sliders)
-    (void)e.attrsW->SpeedSet((DWORD)pct);
+    DWORD v = (DWORD)((pct * 255) / 100);
+    (void)e.attrsW->SpeedSet(v);
 }
-void tts_set_pitch_percent_ui(int pct){
-    if (pct < 50) pct = 50; if (pct > 150) pct = 150;
-    g_ui_pitch_pct.store(pct, std::memory_order_relaxed);
+void tts_set_pitch_percent_ui(Engine& e, int pct){
+    if (!e.attrsW) return;
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    DWORD v = (DWORD)((pct * 255) / 100);
+    (void)e.attrsW->PitchSet(v);
 }
 
 // Instant volume still goes through ITTSAttributesW
@@ -32,16 +29,6 @@ void tts_set_volume_percent(Engine& e, int pct){
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
     DWORD v = (DWORD)((pct * 65535) / 100);
     (void)e.attrsW->VolumeSet(v);
-}
-
-// Build a tag prefix to prepend at speak time
-std::wstring tts_vendor_prefix_from_ui(){
-    const int p = g_ui_pitch_pct.load(std::memory_order_relaxed);
-    if (p == 100) return L"";
-    std::wstring out;
-    wchar_t buf[32]; _snwprintf(buf, 31, L" \\!%%%.2f ", p / 100.0);
-    out += buf;
-    return out;
 }
 
 // -----------------------------------------------------------

@@ -57,6 +57,9 @@
 #ifndef WM_APP_TTS_AUDIO_DONE
 #define WM_APP_TTS_AUDIO_DONE (WM_APP + 21)  // engine → main: audio buffer drained
 #endif
+#ifndef WM_APP_ATTRS_STATE
+#define WM_APP_ATTRS_STATE (WM_APP + 22)  // main → GUI: update vol/rate/pitch sliders
+#endif
 
 // ---- POD payloads ----
 struct GuiAttrs { int vol_percent; int rate_percent; int pitch_percent; };

@@ -82,7 +82,7 @@ static void expand_inline_pauses_and_enqueue(const std::string& line){
     }
 }
 
-// Map leading “/rate N” to SpeedSet and “/pitch N” to vendor tags (non-sticky)
+// Map leading “/rate N” and “/pitch N” to SpeedSet/PitchSet (non-sticky)
 static bool maybe_handle_inline_cmds(const std::string& line){
     auto is_space = [](char c){ return !!isspace((unsigned char)c); };
     size_t i=0, n=line.size(); while (i<n && is_space(line[i])) ++i;
@@ -99,26 +99,33 @@ static bool maybe_handle_inline_cmds(const std::string& line){
         if (have){
             val = std::min(std::max(val,0),100);
             tts_set_rate_percent_ui(g_eng, val);
+            if (HWND dlg = gui_get_main_hwnd()){ auto* a=new GuiAttrs{ -1, val, -1 }; PostMessageW(dlg, WM_APP_ATTRS_STATE, 0, (LPARAM)a); }
             return true;
         }
     } else if (kw=="pitch"){
         size_t p = rest(j); int val=0; bool have=false;
         while (p<n && isdigit((unsigned char)line[p])) { have=true; val = val*10 + (line[p]-'0'); ++p; }
         if (have){
-            double scale = 0.70 + (0.60 * (std::min(std::max(val,0),100)/100.0)); // ~0.70..1.30
-            wchar_t t[64]; _snwprintf(t,63,L" \\!%%%.2f ", scale); // %% -> literal %
-            g_q.push_back({ t }); g_q.push_back({ L" \\!br " });
+            val = std::min(std::max(val,0),100);
+            tts_set_pitch_percent_ui(g_eng, val);
+            if (HWND dlg = gui_get_main_hwnd()){ auto* a=new GuiAttrs{ -1, -1, val }; PostMessageW(dlg, WM_APP_ATTRS_STATE, 0, (LPARAM)a); }
             return true;
         }
-    }else if (kw == "pause") {
+    } else if (kw=="stop"){
+        while (!g_q.empty()) g_q.pop_front();
+        tts_audio_reset(g_eng);
+        g_eng.inflight.store(0);
+        gui_notify_tts_state(false);
+        return true;
+    } else if (kw == "pause") {
         size_t p = rest(j); int ms=0; bool have=false;
         while (p<n && isdigit((unsigned char)line[p])) { have=true; ms = ms*10 + (line[p]-'0'); ++p; }
         if (have) {
            int cs = (std::min(std::max(ms,0),5000) + 5) / 10;
            wchar_t t[64]; _snwprintf(t,63,L" \\!sf%d  \\!br ", cs);
            g_q.push_back({ t });
-            return true;
-      }
+           return true;
+        }
     }
     return false;
 }
@@ -232,8 +239,6 @@ static void enqueue_incoming_text(const std::string& line){
         // VOX: transform then push as a single chunk (no extra splitting)
         std::wstring w = u8_to_w(line);
         std::wstring wtag = vox_process(w,!g_vox_clean);
-        std::wstring prefix = tts_vendor_prefix_from_ui();
-        if (!prefix.empty()) wtag = prefix + wtag;
         log_vox_transform(line, wtag);     // <-- add this line
         if (!wtag.empty()) g_q.push_back({ wtag });
     } else {
@@ -254,7 +259,7 @@ case WM_APP_ATTRS:{
     if (p){
         tts_set_volume_percent(g_eng,p->vol_percent);
         tts_set_rate_percent_ui(g_eng, p->rate_percent);
-        tts_set_pitch_percent_ui(p->pitch_percent);
+        tts_set_pitch_percent_ui(g_eng, p->pitch_percent);
         delete p;
     }
     return 0;

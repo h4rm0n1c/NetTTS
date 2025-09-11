@@ -57,13 +57,8 @@ inline void tts_audio_resume(Engine& e){ if (e.cw) e.cw->AudioResume(); }
 
 // UI → engine (instant)
 void tts_set_volume_percent(Engine& e, int pct);
-void tts_set_rate_percent_ui(Engine& e, int pct); // 0..100
-
-// UI → stash for next utterance (no immediate engine I/O)
-void tts_set_pitch_percent_ui(int pct);
-
-// Build vendor tag prefix for next utterance ("" if defaults)
-std::wstring tts_vendor_prefix_from_ui();
+void tts_set_rate_percent_ui(Engine& e, int pct);  // 0..100 -> 0..255
+void tts_set_pitch_percent_ui(Engine& e, int pct); // 0..100 -> 0..255
 
 
 // PosnGet support
