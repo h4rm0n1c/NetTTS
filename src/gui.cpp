@@ -74,9 +74,9 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         SetDlgItemTextW(hDlg, IDC_BTN_SERVER, L"Start Server");
         SetDlgItemTextW(hDlg, IDC_BTN_SPEAK,  L"Speak");
 
-    // Vol 0..100, Rate 0..100, Pitch 50..150 (100=1.00)
+    // Vol 0..100, Rate 30..200 (100=1.00), Pitch 50..150 (100=1.00)
     SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETRANGE, TRUE, MAKELONG(0, 100));
-    SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(0, 100));
+    SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(30, 200));
     SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETRANGE, TRUE, MAKELONG(50, 150));
 
     SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETPOS, TRUE, 100);
@@ -113,13 +113,13 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         const HWND hPitch = GetDlgItem(hDlg, IDC_PITCH_SLIDER);
 
         const int vol   = (int)SendMessageW(hVol,   TBM_GETPOS, 0, 0);   // 0..100
-        const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 0..100
+        const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 30..200
         const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 50..150
 
         // Update the numeric labels:
         wchar_t b[32];
         _snwprintf(b, 31, L"%d%%", vol);        SetDlgItemTextW(hDlg, IDC_VOL_VAL,  b);
-        _snwprintf(b, 31, L"%d%%", rate);       SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
+        _snwprintf(b, 31, L"%.2f", rate/100.0); SetDlgItemTextW(hDlg, IDC_RATE_VAL, b);
         _snwprintf(b, 31, L"%.2f", pitch/100.0);SetDlgItemTextW(hDlg, IDC_PITCH_VAL,b);
 
         if (s_appWnd){
