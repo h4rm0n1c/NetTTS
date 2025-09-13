@@ -2,6 +2,7 @@
 #include "gui.hpp"
 #include "help.hpp"   // for get_help_text_w()
 #include <mmsystem.h>
+#include "util.hpp"   // u8_to_w
 
 #ifndef IDD_HELP
 #define IDD_HELP       101
@@ -74,10 +75,10 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         SetDlgItemTextW(hDlg, IDC_BTN_SERVER, L"Start Server");
         SetDlgItemTextW(hDlg, IDC_BTN_SPEAK,  L"Speak");
 
-    // Vol 0..100, Rate 30..200 (100=1.00), Pitch 50..150 (100=1.00)
+    // Vol 0..100, Rate 0..200 (100=1.00), Pitch 0..200 (100=1.00)
     SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETRANGE, TRUE, MAKELONG(0, 100));
-    SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(30, 200));
-    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETRANGE, TRUE, MAKELONG(50, 150));
+    SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(0, 200));
+    SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER,TBM_SETRANGE, TRUE, MAKELONG(0, 200));
 
     SendDlgItemMessageW(hDlg, IDC_VOL_SLIDER,  TBM_SETPOS, TRUE, 100);
     SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, 100);
@@ -113,8 +114,8 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         const HWND hPitch = GetDlgItem(hDlg, IDC_PITCH_SLIDER);
 
         const int vol   = (int)SendMessageW(hVol,   TBM_GETPOS, 0, 0);   // 0..100
-        const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 30..200
-        const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 50..150
+        const int rate  = (int)SendMessageW(hRate,  TBM_GETPOS, 0, 0);   // 0..200
+        const int pitch = (int)SendMessageW(hPitch, TBM_GETPOS, 0, 0);   // 0..200
 
         // Update the numeric labels:
         wchar_t b[32];
@@ -244,6 +245,26 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         CheckDlgButton(hDlg, IDC_RAD_CLEAN,  wParam==0);
         CheckDlgButton(hDlg, IDC_RAD_VOXLQ, wParam==1);
         CheckDlgButton(hDlg, IDC_RAD_VOXHQ, wParam==2);
+        return TRUE;
+    }
+
+    case WM_APP_RATE_STATE:{
+        SendDlgItemMessageW(hDlg, IDC_RATE_SLIDER, TBM_SETPOS, TRUE, (LPARAM)wParam);
+        SendMessageW(hDlg, WM_HSCROLL, 0, 0);
+        return TRUE;
+    }
+    case WM_APP_PITCH_STATE:{
+        SendDlgItemMessageW(hDlg, IDC_PITCH_SLIDER, TBM_SETPOS, TRUE, (LPARAM)wParam);
+        SendMessageW(hDlg, WM_HSCROLL, 0, 0);
+        return TRUE;
+    }
+    case WM_APP_SET_TEXT:{
+        std::string* s = (std::string*)lParam;
+        if (s){
+            auto w = u8_to_w(*s);
+            SetDlgItemTextW(hDlg, IDC_EDIT_TEXT, w.c_str());
+            delete s;
+        }
         return TRUE;
     }
 

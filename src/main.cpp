@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
 #include "log.hpp"
 #include "vox_parser.hpp"
 #include "tts_engine.hpp"
@@ -97,7 +98,7 @@ static bool maybe_handle_inline_cmds(const std::string& line){
         size_t p = rest(j); int val=0; bool have=false;
         while (p<n && isdigit((unsigned char)line[p])) { have=true; val = val*10 + (line[p]-'0'); ++p; }
         if (have){
-            double scale = 2.0 - (1.9 * (std::min(std::max(val,0),100) / 100.0));
+            double scale = std::min(std::max(val,0),200) / 100.0;
             wchar_t t[64]; _snwprintf(t,63,L" \\!R%.2f ", scale);
             g_q.push_back({ t }); g_q.push_back({ L" \\!br " });
             return true;
@@ -106,7 +107,7 @@ static bool maybe_handle_inline_cmds(const std::string& line){
         size_t p = rest(j); int val=0; bool have=false;
         while (p<n && isdigit((unsigned char)line[p])) { have=true; val = val*10 + (line[p]-'0'); ++p; }
         if (have){
-            double scale = 0.70 + (0.60 * (std::min(std::max(val,0),100)/100.0)); // ~0.70..1.30
+            double scale = std::min(std::max(val,0),200) / 100.0;
             wchar_t t[64]; _snwprintf(t,63,L" \\!%%%.2f ", scale); // %% -> literal %
             g_q.push_back({ t }); g_q.push_back({ L" \\!br " });
             return true;
@@ -229,6 +230,39 @@ static void log_vox_transform(const std::string& in_u8, const std::wstring& out_
 
 // Enqueue one inbound line, applying --vox if enabled.
 static void enqueue_incoming_text(const std::string& line){
+    auto is_space = [](char c){ return !!isspace((unsigned char)c); };
+    size_t i=0, n=line.size(); while (i<n && is_space(line[i])) ++i;
+    if (i < n && line[i] == '/'){
+        size_t j=i+1; while (j<n && !is_space(line[j])) ++j;
+        std::string kw = line.substr(i+1, j-(i+1));
+        for (char& c : kw) c = (char)tolower((unsigned char)c);
+        auto rest = [&](size_t k){ while (k<n && is_space(line[k])) ++k; return k; };
+        if (kw=="stop"){
+            PostMessageW(g_hwnd, WM_APP_STOP, 0, 0);
+            return;
+        } else if (kw=="rate" || kw=="pitch"){
+            size_t p = rest(j);
+            double val=0.0; bool ok=false;
+            if (p < n){
+                val = atof(line.c_str() + p); // accepts 1.5 or 150
+                if (val <= 2.0) val *= 100.0;
+                ok = true;
+            }
+            if (ok){
+                int pct = (int)(val + 0.5);
+                if (pct < 0) pct = 0; if (pct > 200) pct = 200;
+                if (kw=="rate"){
+                    tts_set_rate_percent_ui(pct);
+                    if (HWND dlg = gui_get_main_hwnd()) PostMessageW(dlg, WM_APP_RATE_STATE, pct, 0);
+                }else{
+                    tts_set_pitch_percent_ui(pct);
+                    if (HWND dlg = gui_get_main_hwnd()) PostMessageW(dlg, WM_APP_PITCH_STATE, pct, 0);
+                }
+            }
+            return;
+        }
+    }
+
     if (g_vox_enabled) {
         // VOX: transform then push as a single chunk (no extra splitting)
         std::wstring w = u8_to_w(line);
@@ -241,6 +275,10 @@ static void enqueue_incoming_text(const std::string& line){
         // Non-VOX: keep your existing inline handling
         if (!maybe_handle_inline_cmds(line))
             expand_inline_pauses_and_enqueue(line);
+    }
+    if (HWND dlg = gui_get_main_hwnd()){
+        auto* s = new std::string(line);
+        PostMessageW(dlg, WM_APP_SET_TEXT, 0, (LPARAM)s);
     }
     kick_if_idle();
 }
