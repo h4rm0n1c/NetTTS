@@ -42,6 +42,10 @@ static HWND         g_hwnd          = nullptr;
 static Engine       g_eng;
 static LONG         g_inflight_local= 0;
 
+// Chunk queue
+struct Chunk { std::wstring text; };
+static std::deque<Chunk> g_q;
+
 static void reset_inflight_counters(){
     g_inflight_local = 0;
     g_eng.inflight.store(0, std::memory_order_relaxed);
@@ -67,11 +71,6 @@ static bool g_vox_enabled = false;
 static bool g_vox_clean   = false; 
 
 static bool g_cli_help  = false;  // --help (print/show help then exit)
-
-// ------------------------------------------------------------------
-// Chunk queue
-struct Chunk { std::wstring text; };
-static std::deque<Chunk> g_q;
 
 // [[pause 500]]  →  " \!sf50 " and " \!br " boundary
 static void expand_inline_pauses_and_enqueue(const std::string& line){
