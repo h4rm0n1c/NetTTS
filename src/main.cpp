@@ -41,10 +41,17 @@ static bool         g_selftest      = false;
 static HWND         g_hwnd          = nullptr;
 static Engine       g_eng;
 static LONG         g_inflight_local= 0;
+static bool         g_gui_busy      = false;
 
 // Chunk queue
 struct Chunk { std::wstring text; };
 static std::deque<Chunk> g_q;
+
+static void publish_gui_busy(bool busy){
+    if (g_gui_busy == busy) return;
+    g_gui_busy = busy;
+    gui_notify_tts_state(busy);
+}
 
 static void reset_inflight_counters(){
     g_inflight_local = 0;
@@ -66,7 +73,7 @@ static void maybe_notify_gui_idle(bool force_audio_hint = false){
         if (g_inflight_local != 0){
             g_inflight_local = 0;
         }
-        gui_notify_tts_state(false);
+        publish_gui_busy(false);
     }
 }
 
@@ -221,6 +228,8 @@ static void enqueue_selftest(){
 
     // --- COMBINED MID-SENTENCE FINAL PAUSE (clear example) ---
     add(L"COMBO C1. Hello \\!sf1000 \\!br world.");
+
+    publish_gui_busy(true);
 }
 
 
@@ -286,6 +295,8 @@ static void enqueue_incoming_text(const std::string& line){
         }
     }
 
+    size_t before = g_q.size();
+
     if (g_vox_enabled) {
         // VOX: transform then push as a single chunk (no extra splitting)
         std::wstring w = u8_to_w(line);
@@ -298,6 +309,10 @@ static void enqueue_incoming_text(const std::string& line){
         // Non-VOX: keep your existing inline handling
         if (!maybe_handle_inline_cmds(line))
             expand_inline_pauses_and_enqueue(line);
+    }
+
+    if (g_q.size() > before){
+        publish_gui_busy(true);
     }
     if (HWND dlg = gui_get_main_hwnd()){
         auto* s = new std::string(line);
@@ -378,7 +393,7 @@ case WM_APP_STOP: {
     while (!g_q.empty()) g_q.pop_front();
     tts_audio_reset(g_eng);               // immediate stop/reset (SAPI4)
     reset_inflight_counters();            // best-effort local reset
-    gui_notify_tts_state(false);          // reflect back to GUI
+    publish_gui_busy(false);              // reflect back to GUI
     if (g_headless) dprintf("[stop] hard stop + clear queue");
     return 0;
 }
@@ -395,7 +410,7 @@ case WM_APP_SPEAK: {
 case WM_APP_TTS_TEXT_START:
     g_inflight_local++;
     // one-liner: tell the GUI it's busy now
-    gui_notify_tts_state(true);
+    publish_gui_busy(true);
     return 0;
 
 
