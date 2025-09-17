@@ -58,6 +58,18 @@
 #define WM_APP_TTS_AUDIO_DONE (WM_APP + 21)  // engine → main: audio buffer drained
 #endif
 
+#ifndef WM_APP_RATE_STATE
+#define WM_APP_RATE_STATE   (WM_APP + 22)    // main → GUI: wParam = rate pct (0..200)
+#endif
+
+#ifndef WM_APP_PITCH_STATE
+#define WM_APP_PITCH_STATE  (WM_APP + 23)    // main → GUI: wParam = pitch pct (0..200)
+#endif
+
+#ifndef WM_APP_SET_TEXT
+#define WM_APP_SET_TEXT     (WM_APP + 24)    // main → GUI: payload std::string*
+#endif
+
 // ---- POD payloads ----
 struct GuiAttrs { int vol_percent; int rate_percent; int pitch_percent; };
 struct GuiDeviceSel { int index; /* -1 = default */ };
