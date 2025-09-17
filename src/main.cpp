@@ -61,9 +61,12 @@ static void maybe_notify_gui_idle(bool force_audio_hint = false){
     if (!g_q.empty()) return;
 
     if (force_audio_hint || g_eng.inflight.load(std::memory_order_relaxed) == 0){
-        if (g_inflight_local == 0){
-            gui_notify_tts_state(false);
+        // If the engine says we are idle, prefer that over the local counter so
+        // the GUI can recover even if WM_APP_TTS_TEXT_* messages were missed.
+        if (g_inflight_local != 0){
+            g_inflight_local = 0;
         }
+        gui_notify_tts_state(false);
     }
 }
 
