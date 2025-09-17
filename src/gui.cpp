@@ -285,7 +285,6 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
     HWND h = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_MAIN), parent, MainDlgProc, 0);
     if (h){
         s_mainDlg = h;                // <- remember it
-        if (parent) s_appWnd = parent;      // <- talk to the hidden app window
         ShowWindow(h, SW_SHOW);
         UpdateWindow(h);                       // ensure initial paint
     }

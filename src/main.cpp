@@ -492,8 +492,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
 
     HWND hDlg = nullptr;
     if (show_gui) {
-        hDlg = create_main_dialog(hInst, g_hwnd);
         gui_set_app_hwnd(g_hwnd);
+        hDlg = create_main_dialog(hInst, nullptr);
 
         if (hDlg){
             PostMessageW(hDlg, WM_APP_DEVICE_STATE, (WPARAM)g_dev_index, 0);
