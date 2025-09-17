@@ -379,7 +379,16 @@ case WM_APP_TTS_TEXT_START:
 case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
-        kick_if_idle();
+        if (!g_q.empty()) {
+            kick_if_idle();
+        } else {
+            // Some SAPI stacks (e.g. older redistributables under Wine) can
+            // deliver AudioStop before TextDataDone. When that happens the
+            // WM_APP_TTS_AUDIO_DONE handler runs while inflight is still >0 and
+            // skips the GUI idle notification, so make sure we emit it here
+            // once all queued chunks have drained.
+            gui_notify_tts_state(false);
+        }
     }
     return 0;
 }
