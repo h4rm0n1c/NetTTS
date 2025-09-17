@@ -42,6 +42,27 @@ static HWND         g_hwnd          = nullptr;
 static Engine       g_eng;
 static LONG         g_inflight_local= 0;
 
+static void reset_inflight_counters(){
+    g_inflight_local = 0;
+    g_eng.inflight.store(0, std::memory_order_relaxed);
+}
+
+static void maybe_notify_gui_idle(bool force_audio_hint = false){
+    if (force_audio_hint){
+        reset_inflight_counters();
+    } else if (g_inflight_local < 0){
+        g_inflight_local = 0;
+    }
+
+    if (!g_q.empty()) return;
+
+    if (force_audio_hint || g_eng.inflight.load(std::memory_order_relaxed) == 0){
+        if (g_inflight_local == 0){
+            gui_notify_tts_state(false);
+        }
+    }
+}
+
 static bool g_vox_enabled = false;
 static bool g_vox_clean   = false; 
 
@@ -354,7 +375,7 @@ case WM_APP_STOP: {
     // Hard stop: clear pending queue and reset audio so current utterance halts
     while (!g_q.empty()) g_q.pop_front();
     tts_audio_reset(g_eng);               // immediate stop/reset (SAPI4)
-    g_eng.inflight.store(0);              // best-effort local reset
+    reset_inflight_counters();            // best-effort local reset
     gui_notify_tts_state(false);          // reflect back to GUI
     if (g_headless) dprintf("[stop] hard stop + clear queue");
     return 0;
@@ -381,21 +402,15 @@ case WM_APP_TTS_TEXT_DONE: {
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
         if (!g_q.empty()) {
             kick_if_idle();
-        } else {
-            // Some SAPI stacks (e.g. older redistributables under Wine) can
-            // deliver AudioStop before TextDataDone. When that happens the
-            // WM_APP_TTS_AUDIO_DONE handler runs while inflight is still >0 and
-            // skips the GUI idle notification, so make sure we emit it here
-            // once all queued chunks have drained.
-            gui_notify_tts_state(false);
         }
     }
+    maybe_notify_gui_idle();
     return 0;
 }
 
 case WM_APP_TTS_AUDIO_DONE: {
-    if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
-        gui_notify_tts_state(false);
+    if (g_q.empty()) {
+        maybe_notify_gui_idle(true);
         if (g_headless) dprintf("[tts] audio done");
     }
     return 0;
