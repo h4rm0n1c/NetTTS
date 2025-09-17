@@ -97,7 +97,9 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
             SendMessageW(hCombo, CB_SETITEMDATA, idx_added, (LPARAM)i);
         }
 
-        int current = (int)SendMessageW(GetAncestor(hDlg, GA_ROOT), WM_APP_GET_DEVICE, 0, 0);
+        int current = -1;
+        if (s_appWnd)
+            current = (int)SendMessageW(s_appWnd, WM_APP_GET_DEVICE, 0, 0);
         int count = (int)SendMessageW(hCombo, CB_GETCOUNT, 0, 0);
         for (int k=0; k<count; k++){
             int val = (int)SendMessageW(hCombo, CB_GETITEMDATA, k, 0);
