@@ -71,6 +71,16 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         if (hi) SendMessageW(hDlg, WM_SETICON, ICON_BIG,   (LPARAM)hi);
         if (si) SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)si);
 
+        // Make sure the dialog advertises itself as an app window so the shell
+        // gives it a taskbar button even if the compiled template is missing
+        // the extended style (e.g. stale resources).
+        LONG_PTR ex = GetWindowLongPtrW(hDlg, GWL_EXSTYLE);
+        if (!(ex & WS_EX_APPWINDOW)){
+            SetWindowLongPtrW(hDlg, GWL_EXSTYLE, ex | WS_EX_APPWINDOW);
+            SetWindowPos(hDlg, nullptr, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+        }
+
         // Default labels
         SetDlgItemTextW(hDlg, IDC_BTN_SERVER, L"Start Server");
         SetDlgItemTextW(hDlg, IDC_BTN_SPEAK,  L"Speak");
@@ -273,6 +283,10 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_CLOSE:
         PostQuitMessage(0);
         DestroyWindow(hDlg);
+        return TRUE;
+
+    case WM_DESTROY:
+        if (s_mainDlg == hDlg) s_mainDlg = nullptr;
         return TRUE;
     }
     return FALSE;
