@@ -51,8 +51,9 @@ HWND gui_get_main_hwnd(){ return s_mainDlg; }
 void gui_set_app_hwnd(HWND h){ s_appWnd = h; }
 
 
-void gui_notify_tts_state(bool busy){
-    if (s_mainDlg) PostMessageW(s_mainDlg, WM_APP_TTS_STATE, busy ? 1 : 0, 0);
+bool gui_notify_tts_state(bool busy){
+    if (!s_mainDlg) return false;
+    return PostMessageW(s_mainDlg, WM_APP_TTS_STATE, busy ? 1 : 0, 0) != 0;
 }
 
 

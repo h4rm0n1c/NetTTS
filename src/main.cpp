@@ -42,15 +42,20 @@ static HWND         g_hwnd          = nullptr;
 static Engine       g_eng;
 static LONG         g_inflight_local= 0;
 static bool         g_gui_busy      = false;
+static bool         g_gui_busy_delivered = false;
 
 // Chunk queue
 struct Chunk { std::wstring text; };
 static std::deque<Chunk> g_q;
 
 static void publish_gui_busy(bool busy){
-    if (g_gui_busy == busy) return;
+    if (!gui_get_main_hwnd()){
+        g_gui_busy_delivered = false;
+    }
+    if (g_gui_busy == busy && g_gui_busy_delivered) return;
+
     g_gui_busy = busy;
-    gui_notify_tts_state(busy);
+    g_gui_busy_delivered = gui_notify_tts_state(busy);
 }
 
 static void reset_inflight_counters(){
@@ -537,6 +542,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         hDlg = create_main_dialog(hInst, nullptr);
 
         if (hDlg){
+            publish_gui_busy(g_gui_busy);
+
             PostMessageW(hDlg, WM_APP_DEVICE_STATE, (WPARAM)g_dev_index, 0);
 
             auto* f = new GuiServerFields{};
