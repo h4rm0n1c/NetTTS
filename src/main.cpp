@@ -52,6 +52,15 @@ static bool g_cli_help  = false;  // --help (print/show help then exit)
 struct Chunk { std::wstring text; };
 static std::deque<Chunk> g_q;
 
+static void handle_stop_request(){
+    while (!g_q.empty()) g_q.pop_front();
+    tts_audio_reset(g_eng);
+    g_eng.inflight.store(0);
+    g_inflight_local = 0;
+    gui_notify_tts_state(false);
+    if (g_headless) dprintf("[stop] hard stop + clear queue");
+}
+
 // [[pause 500]]  →  " \!sf50 " and " \!br " boundary
 static void expand_inline_pauses_and_enqueue(const std::string& line){
     size_t i=0, n=line.size();
@@ -159,6 +168,13 @@ static void kick_if_idle(){
     }
 }
 
+static void notify_idle_if_done(bool log_audio_done){
+    if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
+        gui_notify_tts_state(false);
+        if (log_audio_done && g_headless) dprintf("[tts] audio done");
+    }
+}
+
 
 
 
@@ -238,7 +254,7 @@ static void enqueue_incoming_text(const std::string& line){
         for (char& c : kw) c = (char)tolower((unsigned char)c);
         auto rest = [&](size_t k){ while (k<n && is_space(line[k])) ++k; return k; };
         if (kw=="stop"){
-            PostMessageW(g_hwnd, WM_APP_STOP, 0, 0);
+            handle_stop_request();
             return;
         } else if (kw=="rate" || kw=="pitch"){
             size_t p = rest(j);
@@ -352,11 +368,7 @@ case WM_APP_GET_DEVICE:{
 
 case WM_APP_STOP: {
     // Hard stop: clear pending queue and reset audio so current utterance halts
-    while (!g_q.empty()) g_q.pop_front();
-    tts_audio_reset(g_eng);               // immediate stop/reset (SAPI4)
-    g_eng.inflight.store(0);              // best-effort local reset
-    gui_notify_tts_state(false);          // reflect back to GUI
-    if (g_headless) dprintf("[stop] hard stop + clear queue");
+    handle_stop_request();
     return 0;
 }
 
@@ -381,14 +393,12 @@ case WM_APP_TTS_TEXT_DONE: {
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
         kick_if_idle();
     }
+    notify_idle_if_done(false);
     return 0;
 }
 
 case WM_APP_TTS_AUDIO_DONE: {
-    if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
-        gui_notify_tts_state(false);
-        if (g_headless) dprintf("[tts] audio done");
-    }
+    notify_idle_if_done(true);
     return 0;
 }
 
