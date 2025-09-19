@@ -7,16 +7,32 @@ IDI_APP ICON "app.ico"
 
 // IDs
 #define IDD_HELP       101
-#define IDC_HELP_EDIT  1001
+#define IDC_HELP_EDIT      1001
+#define IDC_HELP_ICON      1002
+#define IDC_HELP_TITLE     1003
+#define IDC_HELP_VERSION   1004
+#define IDC_HELP_AUTHOR    1005
+#define IDC_HELP_COPYRIGHT 1006
+#define IDC_HELP_LINK      1007
 
 IDD_HELP DIALOGEX 0, 0, 380, 260
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "NetTTS Help"
 FONT 8, "MS Shell Dlg"
 BEGIN
+    CONTROL "", IDC_HELP_ICON, "STATIC",
+        WS_CHILD | WS_VISIBLE | SS_ICON,
+        7, 7, 48, 48
+    LTEXT "NetTTS", IDC_HELP_TITLE, 62, 9, 300, 12
+    LTEXT "Version 0.95c (Shareware Deluxe Edition)", IDC_HELP_VERSION, 62, 21, 300, 10
+    LTEXT "Author: h4rm0n1c", IDC_HELP_AUTHOR, 62, 33, 300, 10
+    LTEXT "© h4rm0n1c", IDC_HELP_COPYRIGHT, 62, 44, 300, 10
+    CONTROL "<a id=\"repo\" href=\"https://github.com/h4rm0n1c/NetTTS/\">https://github.com/h4rm0n1c/NetTTS/</a>", IDC_HELP_LINK, "SysLink",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+        62, 55, 305, 12
     CONTROL "", IDC_HELP_EDIT, "EDIT",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP,
-        7, 7, 366, 230
+        7, 70, 366, 167
     DEFPUSHBUTTON "OK", IDOK, 320, 240, 53, 14, WS_TABSTOP
 END
 
