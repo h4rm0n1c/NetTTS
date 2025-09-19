@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <string>
 #include <deque>
+#include <utility>
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -52,13 +53,21 @@ static bool g_cli_help  = false;  // --help (print/show help then exit)
 struct Chunk { std::wstring text; };
 static std::deque<Chunk> g_q;
 
+static void push_chunk(std::wstring text){
+    if (g_headless){
+        std::string u8 = w_to_u8(text);
+        dprintf("[queue] push: \"%s\"", u8.c_str());
+    }
+    g_q.push_back({ std::move(text) });
+}
+
 // [[pause 500]]  →  " \!sf50 " and " \!br " boundary
 static void expand_inline_pauses_and_enqueue(const std::string& line){
     size_t i=0, n=line.size();
     auto push_text = [&](const std::string& s){
         if (s.empty()) return;
-        g_q.push_back({ u8_to_w(s) });
-        g_q.push_back({ L" \\!br " }); // force boundary between logical chunks
+        push_chunk(u8_to_w(s));
+        push_chunk(L" \\!br "); // force boundary between logical chunks
     };
     while (i<n){
         size_t p = line.find("[[pause", i);
@@ -73,8 +82,8 @@ static void expand_inline_pauses_and_enqueue(const std::string& line){
             ms = std::max(0, std::min(ms, 5000));
             int cs = (ms + 5) / 10;
             wchar_t tmp[64]; _snwprintf(tmp, 63, L" \\!sf%d ", cs);
-            g_q.push_back({ tmp });
-            g_q.push_back({ L" \\!br " });
+            push_chunk(tmp);
+            push_chunk(L" \\!br ");
             i = close + 2;
         } else {
             // malformed tail -> ignore
@@ -100,7 +109,8 @@ static bool maybe_handle_inline_cmds(const std::string& line){
         if (have){
             double scale = std::min(std::max(val,0),200) / 100.0;
             wchar_t t[64]; _snwprintf(t,63,L" \\!R%.2f ", scale);
-            g_q.push_back({ t }); g_q.push_back({ L" \\!br " });
+            push_chunk(t);
+            push_chunk(L" \\!br ");
             return true;
         }
     } else if (kw=="pitch"){
@@ -109,7 +119,8 @@ static bool maybe_handle_inline_cmds(const std::string& line){
         if (have){
             double scale = std::min(std::max(val,0),200) / 100.0;
             wchar_t t[64]; _snwprintf(t,63,L" \\!%%%.2f ", scale); // %% -> literal %
-            g_q.push_back({ t }); g_q.push_back({ L" \\!br " });
+            push_chunk(t);
+            push_chunk(L" \\!br ");
             return true;
         }
     }else if (kw == "pause") {
@@ -118,7 +129,7 @@ static bool maybe_handle_inline_cmds(const std::string& line){
         if (have) {
            int cs = (std::min(std::max(ms,0),5000) + 5) / 10;
            wchar_t t[64]; _snwprintf(t,63,L" \\!sf%d  \\!br ", cs);
-           g_q.push_back({ t });
+           push_chunk(t);
             return true;
       }
     }
@@ -152,6 +163,16 @@ static void kick_if_idle(){
         g_q.pop_front();
     }
 
+    std::wstring prefix = tts_vendor_prefix_from_ui();
+    if (!prefix.empty()) {
+        w = prefix + w;
+    }
+
+    if (g_headless) {
+        std::string payload = w_to_u8(w);
+        dprintf("[speak] text=\"%s\"", payload.c_str());
+    }
+
     const bool tagged = text_looks_tagged(w);
     HRESULT hr = tts_speak(g_eng, w, tagged);
     if (g_headless) {
@@ -165,8 +186,8 @@ static void kick_if_idle(){
 // Self-test matrix (audible probes; FlexTalk vendor tags)
 static void enqueue_selftest(){
     auto add = [&](const std::wstring& W){
-        g_q.push_back({ W });
-        g_q.push_back({ L" \\!br " }); // separate each test audibly
+        push_chunk(W);
+        push_chunk(L" \\!br "); // separate each test audibly
     };
 
     // --- PAUSE TESTS (anchored with \!br so FlexTalk honors them) ---
@@ -192,9 +213,9 @@ static void enqueue_selftest(){
     add(L"BOUNDARY B1. Before boundary. \\!br After boundary.");
 
     // --- TAGS WITHOUT SPACES (negative control) ---
-    g_q.push_back({ L"TAGS D1. Tag without surrounding spaces (engine may ignore or speak literally)." });
-    g_q.push_back({ L"\\!sf500" });               // intentionally glued
-    g_q.push_back({ L" \\!br " });
+    push_chunk(L"TAGS D1. Tag without surrounding spaces (engine may ignore or speak literally).");
+    push_chunk(L"\\!sf500");               // intentionally glued
+    push_chunk(L" \\!br ");
 
     // --- COMBINED MID-SENTENCE FINAL PAUSE (clear example) ---
     add(L"COMBO C1. Hello \\!sf1000 \\!br world.");
@@ -230,6 +251,10 @@ static void log_vox_transform(const std::string& in_u8, const std::wstring& out_
 
 // Enqueue one inbound line, applying --vox if enabled.
 static void enqueue_incoming_text(const std::string& line){
+    if (g_headless){
+        dprintf("[input] raw=\"%s\"", line.c_str());
+    }
+
     auto is_space = [](char c){ return !!isspace((unsigned char)c); };
     size_t i=0, n=line.size(); while (i<n && is_space(line[i])) ++i;
     if (i < n && line[i] == '/'){
@@ -267,10 +292,8 @@ static void enqueue_incoming_text(const std::string& line){
         // VOX: transform then push as a single chunk (no extra splitting)
         std::wstring w = u8_to_w(line);
         std::wstring wtag = vox_process(w,!g_vox_clean);
-        std::wstring prefix = tts_vendor_prefix_from_ui();
-        if (!prefix.empty()) wtag = prefix + wtag;
-        log_vox_transform(line, wtag);     // <-- add this line
-        if (!wtag.empty()) g_q.push_back({ wtag });
+        log_vox_transform(line, wtag);
+        if (!wtag.empty()) push_chunk(std::move(wtag));
     } else {
         // Non-VOX: keep your existing inline handling
         if (!maybe_handle_inline_cmds(line))
