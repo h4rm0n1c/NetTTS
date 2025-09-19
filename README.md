@@ -1,57 +1,44 @@
-# NetTTS — Build Instructions (MinGW-w64 i686)
+# NetTTS
 
-This repository builds a Win32 executable using MinGW-w64 (32‑bit). The build does **not** require a system‑installed SAPI 4 SDK because a known‑good header is included in the tree.
+<p align="center">
+  <img src="app.ico" alt="NetTTS icon" width="96" />
+</p>
 
----
+<p align="center">
+  <img src="nettts_main_window.png" alt="NetTTS main window" width="720" />
+</p>
 
-## Prerequisites (Linux host)
+NetTTS keeps vintage-friendly speech synthesis fun instead of fiddly. It wraps FlexTalk and other SAPI 4.0 voices in a warm GUI that feels equally at home on a Pentium III, modern Windows 10 x64, or a Wine 8+ sandbox running on your favorite Linux box.
 
-- `make`
-- `mingw-w64` 32‑bit cross compiler: `i686-w64-mingw32-g++`
-- Resource compiler: `i686-w64-mingw32-windres`
+## Highlights
 
-Devuan/Ubuntu/Debian example:
+- **Retro hardware ready** – Ship one lightweight executable that behaves on classic Windows installs without a DLL scavenger hunt.
+- **Pure cross-compiled build** – Build everything from Linux with MinGW-w64; no need to chase abandoned Microsoft downloads.
+- **Bundled speech headers** – A known-good `speech.h` is vendored under `third_party/headers/` so the toolchain never breaks.
+- **Wine-tested workflow** – Mirrors the maintainer's Devuan + Wine environment, making it painless to automate or integrate.
+
+## Quick start build (Linux host)
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y make mingw-w64 g++-mingw-w64-i686
-```
 
----
-
-## Build
-
-From the repo root:
-
-```bash
 make -f Makefile.mingw -j"$(nproc)"
 # → build/nettts_gui.exe
 ```
 
-### Include path
+The resulting binary lands in `./build/` and can be launched on Windows or via Wine (`$HOME/bin/wrun ./build/nettts_gui.exe`).
 
-The Makefile defaults to the committed header at:
+## Customize the include path
 
-```
-third_party/include/speech.h
-```
-
-If you prefer a different SDK location, you can override the include path:
+By default the build pulls in the bundled header at `third_party/headers/speech.h`. If you have a different SDK you want to test against, point `INC_DIR` wherever you need:
 
 ```bash
 make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -j"$(nproc)"
 ```
 
-Clean:
+## Housekeeping
 
-```bash
-make -f Makefile.mingw clean
-```
-
----
-
-## Notes
-
-- **Output directory:** all artifacts are placed in `./build/`.
-- **Local headers:** SAPI 4.0 `speech.h` is included at `third_party/include/` for reproducible builds.
-- **Dependencies folder:** The `Dependencies/` directory (if present) may contain installer EXEs for the **SAPI 4.0 SDK**, **SAPI 4.0 runtime**, and **FlexTalk** voice. These are **optional** for building (thanks to the included header) but can be used to install the SDK/runtime/engine on Windows or under Wine if needed.
+- **Clean builds:** `make -f Makefile.mingw clean`
+- **Artifacts:** Everything lands in `./build/`
+- **Optional extras:** If the `Dependencies/` folder is present, it may carry installers for the SAPI 4 SDK, runtime, or FlexTalk voice. They're handy for setting up Windows, but thanks to the in-repo header the build stays fully reproducible.
