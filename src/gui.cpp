@@ -1,4 +1,7 @@
 #include <windows.h>
+#include <commctrl.h>
+#include <shellapi.h>
+#include <new>
 #include "gui.hpp"
 #include "help.hpp"   // for get_help_text_w()
 #include <mmsystem.h>
@@ -6,7 +9,13 @@
 
 #ifndef IDD_HELP
 #define IDD_HELP       101
-#define IDC_HELP_EDIT  1001
+#define IDC_HELP_EDIT      1001
+#define IDC_HELP_ICON      1002
+#define IDC_HELP_TITLE     1003
+#define IDC_HELP_VERSION   1004
+#define IDC_HELP_AUTHOR    1005
+#define IDC_HELP_COPYRIGHT 1006
+#define IDC_HELP_LINK      1007
 #endif
 
 #ifndef IDD_MAIN
@@ -44,8 +53,20 @@
 #endif
 
 
+#ifndef IDC_HAND
+#define IDC_HAND MAKEINTRESOURCEW(32649)
+#endif
+
+static const wchar_t kHelpRepoUrl[] = L"https://github.com/h4rm0n1c/NetTTS/";
+
 static HWND s_mainDlg = nullptr;
 static HWND s_appWnd  = nullptr;  // <- hidden app window (owner of WndProc)
+
+struct HelpDialogState {
+    HFONT titleFont   = nullptr;
+    HFONT versionFont = nullptr;
+    HFONT linkFont    = nullptr;
+};
 
 HWND gui_get_main_hwnd(){ return s_mainDlg; }
 void gui_set_app_hwnd(HWND h){ s_appWnd = h; }
@@ -280,8 +301,11 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
 // Create the modeless main dialog (caller owns message pump)
 HWND create_main_dialog(HINSTANCE hInst, HWND parent){
-    INITCOMMONCONTROLSEX icc{ sizeof(icc), ICC_BAR_CLASSES };
-    InitCommonControlsEx(&icc);
+    INITCOMMONCONTROLSEX icc{ sizeof(icc), ICC_BAR_CLASSES | ICC_LINK_CLASS };
+    if (!InitCommonControlsEx(&icc)){
+        icc.dwICC = ICC_BAR_CLASSES;
+        InitCommonControlsEx(&icc);
+    }
     HWND h = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_MAIN), parent, MainDlgProc, 0);
     if (h){
         s_mainDlg = h;                // <- remember it
@@ -293,15 +317,47 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
 }
 
 
-static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM){
+static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch(uMsg){
     case WM_INITDIALOG:{
+        auto* state = new(std::nothrow) HelpDialogState{};
+        SetWindowLongPtrW(hDlg, GWLP_USERDATA, (LONG_PTR)state);
 
-HINSTANCE hInst = (HINSTANCE)GetWindowLongPtrW(hDlg, GWLP_HINSTANCE);
-HICON hBig   = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 32, 32, 0);
-HICON hSmall = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 16, 16, 0);
-if (hBig)   SendMessageW(hDlg, WM_SETICON, ICON_BIG,   (LPARAM)hBig);
-if (hSmall) SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hSmall);
+        HINSTANCE hInst = (HINSTANCE)GetWindowLongPtrW(hDlg, GWLP_HINSTANCE);
+        HICON hBig   = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 32, 32, 0);
+        HICON hSmall = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 16, 16, 0);
+        if (hBig)   SendMessageW(hDlg, WM_SETICON, ICON_BIG,   (LPARAM)hBig);
+        if (hSmall) SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hSmall);
+
+        HICON hHeader = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, 48, 48, LR_DEFAULTCOLOR | LR_SHARED);
+        if (hHeader) SendDlgItemMessageW(hDlg, IDC_HELP_ICON, STM_SETICON, (WPARAM)hHeader, 0);
+
+        LOGFONTW lf{};
+        HFONT baseFont = (HFONT)SendMessageW(hDlg, WM_GETFONT, 0, 0);
+        if (!baseFont || !GetObjectW(baseFont, sizeof(lf), &lf)){
+            GetObjectW(GetStockObject(DEFAULT_GUI_FONT), sizeof(lf), &lf);
+        }
+
+        if (state){
+            LOGFONTW lfTitle = lf;
+            lfTitle.lfWeight = FW_BOLD;
+            lfTitle.lfHeight = lf.lfHeight ? MulDiv(lf.lfHeight, 3, 2) : -16;
+            state->titleFont = CreateFontIndirectW(&lfTitle);
+            if (state->titleFont) SendDlgItemMessageW(hDlg, IDC_HELP_TITLE, WM_SETFONT, (WPARAM)state->titleFont, TRUE);
+
+            LOGFONTW lfVersion = lf;
+            lfVersion.lfItalic = TRUE;
+            state->versionFont = CreateFontIndirectW(&lfVersion);
+            if (state->versionFont) SendDlgItemMessageW(hDlg, IDC_HELP_VERSION, WM_SETFONT, (WPARAM)state->versionFont, TRUE);
+
+            LOGFONTW lfLink = lf;
+            lfLink.lfUnderline = TRUE;
+            lfLink.lfWeight = FW_NORMAL;
+            state->linkFont = CreateFontIndirectW(&lfLink);
+            if (state->linkFont) SendDlgItemMessageW(hDlg, IDC_HELP_LINK, WM_SETFONT, (WPARAM)state->linkFont, TRUE);
+        }
+
+        SetDlgItemTextW(hDlg, IDC_HELP_LINK, kHelpRepoUrl);
 
         auto txt = get_help_text_w();                 // single source of help text
         SetDlgItemTextW(hDlg, IDC_HELP_EDIT, txt.c_str());
@@ -312,10 +368,52 @@ if (hSmall) SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hSmall);
         return FALSE; // we set focus
     }
     case WM_COMMAND:
+        if (LOWORD(wParam) == IDC_HELP_LINK && (HIWORD(wParam) == STN_CLICKED || HIWORD(wParam) == STN_DBLCLK)){
+            ShellExecuteW(hDlg, L"open", kHelpRepoUrl, nullptr, nullptr, SW_SHOWNORMAL);
+            return TRUE;
+        }
         if(LOWORD(wParam)==IDOK || LOWORD(wParam)==IDCANCEL){ DestroyWindow(hDlg); return TRUE; }
         break;
+    case WM_NOTIFY:{
+        auto* hdr = reinterpret_cast<LPNMHDR>(lParam);
+        if (hdr && hdr->idFrom == IDC_HELP_LINK && (hdr->code == NM_CLICK || hdr->code == NM_RETURN)){
+            auto* link = reinterpret_cast<PNMLINK>(lParam);
+            const wchar_t* url = (link && link->item.szUrl[0]) ? link->item.szUrl : kHelpRepoUrl;
+            ShellExecuteW(hDlg, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
+            return TRUE;
+        }
+        break;
+    }
     case WM_CLOSE:
         DestroyWindow(hDlg); return TRUE;
+    case WM_SETCURSOR:{
+        if ((HWND)wParam == GetDlgItem(hDlg, IDC_HELP_LINK)){
+            SetCursor(LoadCursorW(nullptr, IDC_HAND));
+            return TRUE;
+        }
+        break;
+    }
+    case WM_CTLCOLORSTATIC:{
+        HDC hdc = (HDC)wParam;
+        HWND hwndCtl = (HWND)lParam;
+        if (GetDlgCtrlID(hwndCtl) == IDC_HELP_LINK){
+            SetTextColor(hdc, RGB(0, 102, 204));
+            SetBkMode(hdc, TRANSPARENT);
+            return (INT_PTR)GetSysColorBrush(COLOR_BTNFACE);
+        }
+        break;
+    }
+    case WM_DESTROY:{
+        auto* state = reinterpret_cast<HelpDialogState*>(GetWindowLongPtrW(hDlg, GWLP_USERDATA));
+        if (state){
+            if (state->titleFont) DeleteObject(state->titleFont);
+            if (state->versionFont) DeleteObject(state->versionFont);
+            if (state->linkFont) DeleteObject(state->linkFont);
+            delete state;
+            SetWindowLongPtrW(hDlg, GWLP_USERDATA, 0);
+        }
+        break;
+    }
     }
     return FALSE;
 }
