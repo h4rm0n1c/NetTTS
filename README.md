@@ -51,3 +51,6 @@ make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -
 - **Clean builds:** `make -f Makefile.mingw clean`
 - **Artifacts:** Everything lands in `./build/`
 - **Optional extras:** If the `Dependencies/` folder is present, it may carry installers for the SAPI 4 SDK, runtime, or FlexTalk voice. They're handy for setting up Windows, but thanks to the in-repo header the build stays fully reproducible.
+
+
+Thanks to valve software as well for making some fucking incredible games.
