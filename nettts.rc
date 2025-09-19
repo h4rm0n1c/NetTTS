@@ -26,9 +26,9 @@ BEGIN
     LTEXT "NetTTS", IDC_HELP_TITLE, 62, 9, 300, 12
     LTEXT "Version 0.95c (Shareware Deluxe Edition)", IDC_HELP_VERSION, 62, 21, 300, 10
     LTEXT "Author: h4rm0n1c", IDC_HELP_AUTHOR, 62, 33, 300, 10
-    LTEXT "© h4rm0n1c", IDC_HELP_COPYRIGHT, 62, 44, 300, 10
-    CONTROL "<a id=""repo"" href=""https://github.com/h4rm0n1c/NetTTS/"">https://github.com/h4rm0n1c/NetTTS/</a>", IDC_HELP_LINK, "SysLink",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+    LTEXT "\xa9 h4rm0n1c", IDC_HELP_COPYRIGHT, 62, 44, 300, 10
+    CONTROL "https://github.com/h4rm0n1c/NetTTS/", IDC_HELP_LINK, "STATIC",
+        WS_CHILD | WS_VISIBLE | SS_NOTIFY,
         62, 55, 305, 12
     CONTROL "", IDC_HELP_EDIT, "EDIT",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP,

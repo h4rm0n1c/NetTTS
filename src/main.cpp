@@ -461,7 +461,10 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
 // WinMain
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
     INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_WIN95_CLASSES | ICC_LINK_CLASS};
-    InitCommonControlsEx(&icc);
+    if (!InitCommonControlsEx(&icc)){
+        icc.dwICC = ICC_WIN95_CLASSES;
+        InitCommonControlsEx(&icc);
+    }
 
     parse_cmdline();
 

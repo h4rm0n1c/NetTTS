@@ -53,12 +53,19 @@
 #endif
 
 
+#ifndef IDC_HAND
+#define IDC_HAND MAKEINTRESOURCEW(32649)
+#endif
+
+static const wchar_t kHelpRepoUrl[] = L"https://github.com/h4rm0n1c/NetTTS/";
+
 static HWND s_mainDlg = nullptr;
 static HWND s_appWnd  = nullptr;  // <- hidden app window (owner of WndProc)
 
 struct HelpDialogState {
     HFONT titleFont   = nullptr;
     HFONT versionFont = nullptr;
+    HFONT linkFont    = nullptr;
 };
 
 HWND gui_get_main_hwnd(){ return s_mainDlg; }
@@ -295,7 +302,10 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 // Create the modeless main dialog (caller owns message pump)
 HWND create_main_dialog(HINSTANCE hInst, HWND parent){
     INITCOMMONCONTROLSEX icc{ sizeof(icc), ICC_BAR_CLASSES | ICC_LINK_CLASS };
-    InitCommonControlsEx(&icc);
+    if (!InitCommonControlsEx(&icc)){
+        icc.dwICC = ICC_BAR_CLASSES;
+        InitCommonControlsEx(&icc);
+    }
     HWND h = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_MAIN), parent, MainDlgProc, 0);
     if (h){
         s_mainDlg = h;                // <- remember it
@@ -339,7 +349,15 @@ static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
             lfVersion.lfItalic = TRUE;
             state->versionFont = CreateFontIndirectW(&lfVersion);
             if (state->versionFont) SendDlgItemMessageW(hDlg, IDC_HELP_VERSION, WM_SETFONT, (WPARAM)state->versionFont, TRUE);
+
+            LOGFONTW lfLink = lf;
+            lfLink.lfUnderline = TRUE;
+            lfLink.lfWeight = FW_NORMAL;
+            state->linkFont = CreateFontIndirectW(&lfLink);
+            if (state->linkFont) SendDlgItemMessageW(hDlg, IDC_HELP_LINK, WM_SETFONT, (WPARAM)state->linkFont, TRUE);
         }
+
+        SetDlgItemTextW(hDlg, IDC_HELP_LINK, kHelpRepoUrl);
 
         auto txt = get_help_text_w();                 // single source of help text
         SetDlgItemTextW(hDlg, IDC_HELP_EDIT, txt.c_str());
@@ -350,13 +368,17 @@ static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
         return FALSE; // we set focus
     }
     case WM_COMMAND:
+        if (LOWORD(wParam) == IDC_HELP_LINK && (HIWORD(wParam) == STN_CLICKED || HIWORD(wParam) == STN_DBLCLK)){
+            ShellExecuteW(hDlg, L"open", kHelpRepoUrl, nullptr, nullptr, SW_SHOWNORMAL);
+            return TRUE;
+        }
         if(LOWORD(wParam)==IDOK || LOWORD(wParam)==IDCANCEL){ DestroyWindow(hDlg); return TRUE; }
         break;
     case WM_NOTIFY:{
         auto* hdr = reinterpret_cast<LPNMHDR>(lParam);
         if (hdr && hdr->idFrom == IDC_HELP_LINK && (hdr->code == NM_CLICK || hdr->code == NM_RETURN)){
             auto* link = reinterpret_cast<PNMLINK>(lParam);
-            const wchar_t* url = link && link->item.szUrl[0] ? link->item.szUrl : L"https://github.com/h4rm0n1c/NetTTS/";
+            const wchar_t* url = (link && link->item.szUrl[0]) ? link->item.szUrl : kHelpRepoUrl;
             ShellExecuteW(hDlg, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
             return TRUE;
         }
@@ -364,11 +386,29 @@ static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     }
     case WM_CLOSE:
         DestroyWindow(hDlg); return TRUE;
+    case WM_SETCURSOR:{
+        if ((HWND)wParam == GetDlgItem(hDlg, IDC_HELP_LINK)){
+            SetCursor(LoadCursorW(nullptr, IDC_HAND));
+            return TRUE;
+        }
+        break;
+    }
+    case WM_CTLCOLORSTATIC:{
+        HDC hdc = (HDC)wParam;
+        HWND hwndCtl = (HWND)lParam;
+        if (GetDlgCtrlID(hwndCtl) == IDC_HELP_LINK){
+            SetTextColor(hdc, RGB(0, 102, 204));
+            SetBkMode(hdc, TRANSPARENT);
+            return (INT_PTR)GetSysColorBrush(COLOR_BTNFACE);
+        }
+        break;
+    }
     case WM_DESTROY:{
         auto* state = reinterpret_cast<HelpDialogState*>(GetWindowLongPtrW(hDlg, GWLP_USERDATA));
         if (state){
             if (state->titleFont) DeleteObject(state->titleFont);
             if (state->versionFont) DeleteObject(state->versionFont);
+            if (state->linkFont) DeleteObject(state->linkFont);
             delete state;
             SetWindowLongPtrW(hDlg, GWLP_USERDATA, 0);
         }
