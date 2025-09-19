@@ -5,7 +5,9 @@
 #include <string>
 #include <deque>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include "log.hpp"
@@ -41,6 +43,7 @@ static bool         g_selftest      = false;
 static HWND         g_hwnd          = nullptr;
 static Engine       g_eng;
 static LONG         g_inflight_local= 0;
+std::atomic<uint32_t> g_tts_epoch{1};
 
 static bool g_vox_enabled = false;
 static bool g_vox_clean   = false; 
@@ -53,9 +56,10 @@ struct Chunk { std::wstring text; };
 static std::deque<Chunk> g_q;
 
 static void handle_stop_request(){
+    (void)g_tts_epoch.fetch_add(1, std::memory_order_acq_rel);
     while (!g_q.empty()) g_q.pop_front();
     tts_audio_reset(g_eng);
-    g_eng.inflight.store(0);
+    g_eng.inflight.store(0, std::memory_order_release);
     g_inflight_local = 0;
     gui_notify_tts_state(false);
     if (g_headless) dprintf("[stop] hard stop + clear queue");
@@ -176,6 +180,12 @@ static void notify_idle_if_done(bool log_audio_done){
             dprintf("[tts] audio done (engine inflight=%ld)", engine_inflight);
         }
     }
+}
+
+static inline bool message_epoch_is_current(WPARAM w){
+    uint32_t epoch = static_cast<uint32_t>(w);
+    uint32_t current = g_tts_epoch.load(std::memory_order_acquire);
+    return epoch == current;
 }
 
 
@@ -385,6 +395,7 @@ case WM_APP_SPEAK: {
 }
 
 case WM_APP_TTS_TEXT_START:
+    if (!message_epoch_is_current(w)) return 0;
     g_inflight_local++;
     // one-liner: tell the GUI it's busy now
     gui_notify_tts_state(true);
@@ -392,6 +403,7 @@ case WM_APP_TTS_TEXT_START:
 
 
 case WM_APP_TTS_TEXT_DONE: {
+    if (!message_epoch_is_current(w)) return 0;
     if (g_inflight_local > 0) g_inflight_local--;
     if (g_eng.inflight.load(std::memory_order_acquire) == 0) {
         kick_if_idle();
@@ -401,6 +413,7 @@ case WM_APP_TTS_TEXT_DONE: {
 }
 
 case WM_APP_TTS_AUDIO_DONE: {
+    if (!message_epoch_is_current(w)) return 0;
     notify_idle_if_done(true);
     return 0;
 }
