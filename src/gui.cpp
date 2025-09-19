@@ -307,7 +307,7 @@ HWND create_main_dialog(HINSTANCE hInst, HWND parent){
 }
 
 
-static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM){
+static INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch(uMsg){
     case WM_INITDIALOG:{
         auto* state = new(std::nothrow) HelpDialogState{};
