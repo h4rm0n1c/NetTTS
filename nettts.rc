@@ -3,6 +3,13 @@
 #define IDI_APP  1
 #endif
 
+#define APP_PRODUCT_NAME     "NetTTS"
+#define APP_VERSION_TAG      "0.95c (Shareware Deluxe Edition)"
+#define APP_VERSION_DISPLAY  "Version " APP_VERSION_TAG
+#define APP_AUTHOR_NAME      "h4rm0n1c"
+#define APP_COPYRIGHT_TEXT   "\xa9 " APP_AUTHOR_NAME
+#define APP_REPO_URL         "https://github.com/h4rm0n1c/NetTTS/"
+
 IDI_APP ICON "app.ico"
 
 // IDs
@@ -23,11 +30,11 @@ BEGIN
     CONTROL "", IDC_HELP_ICON, "STATIC",
         WS_CHILD | WS_VISIBLE | SS_ICON,
         7, 7, 48, 48
-    LTEXT "NetTTS", IDC_HELP_TITLE, 62, 9, 300, 12
-    LTEXT "Version 0.95c (Shareware Deluxe Edition)", IDC_HELP_VERSION, 62, 21, 300, 10
-    LTEXT "Author: h4rm0n1c", IDC_HELP_AUTHOR, 62, 33, 300, 10
-    LTEXT "\xa9 h4rm0n1c", IDC_HELP_COPYRIGHT, 62, 44, 300, 10
-    CONTROL "https://github.com/h4rm0n1c/NetTTS/", IDC_HELP_LINK, "STATIC",
+    LTEXT APP_PRODUCT_NAME, IDC_HELP_TITLE, 62, 9, 300, 12
+    LTEXT APP_VERSION_DISPLAY, IDC_HELP_VERSION, 62, 21, 300, 10
+    LTEXT "Author: " APP_AUTHOR_NAME, IDC_HELP_AUTHOR, 62, 33, 300, 10
+    LTEXT APP_COPYRIGHT_TEXT, IDC_HELP_COPYRIGHT, 62, 44, 300, 10
+    CONTROL APP_REPO_URL, IDC_HELP_LINK, "STATIC",
         WS_CHILD | WS_VISIBLE | SS_NOTIFY,
         62, 55, 305, 12
     CONTROL "", IDC_HELP_EDIT, "EDIT",
@@ -125,4 +132,42 @@ BEGIN
     LTEXT "Port:", IDC_PORT_LABEL,  175, 375, 25, 10
     EDITTEXT IDC_EDIT_PORT, 203, 373, 40, 13, ES_NUMBER | ES_AUTOHSCROLL
     PUSHBUTTON "Start Server", IDC_BTN_SERVER, 255, 373, 143, 14, WS_TABSTOP
+END
+
+// ---- Version Information (Details tab metadata) ------------------
+// Encode the retro "0.95c" tag as 0,0,95,3 so the numeric file version stays valid.
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,0,95,3
+ PRODUCTVERSION 0,0,95,3
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS VOS__WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "Comments", APP_REPO_URL "\0"
+            VALUE "CompanyName", APP_AUTHOR_NAME "\0"
+            VALUE "FileDescription", APP_PRODUCT_NAME " Retro Network Text-to-Speech Utility\0"
+            VALUE "FileVersion", APP_VERSION_TAG "\0"
+            VALUE "InternalName", APP_PRODUCT_NAME "\0"
+            VALUE "LegalCopyright", APP_COPYRIGHT_TEXT "\0"
+            VALUE "OriginalFilename", "nettts_gui.exe\0"
+            VALUE "ProductName", APP_PRODUCT_NAME "\0"
+            VALUE "ProductVersion", APP_VERSION_TAG "\0"
+            VALUE "SpecialBuild", "Shareware Deluxe Edition\0"
+            VALUE "SupportURL", APP_REPO_URL "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
 END
