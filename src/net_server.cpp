@@ -1,5 +1,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
 #pragma comment(lib, "ws2_32.lib")
 
 #include "log.hpp"
@@ -22,19 +23,48 @@ static HWND   g_hwnd   = nullptr;
 static std::wstring g_host = L"127.0.0.1";
 static int          g_port = 5555;
 
+using inet_pton_func = INT (WSAAPI*)(INT, const char*, void*);
+
+static bool inet_pton_compat(const std::string& host, in_addr* out)
+{
+    if (!out) {
+        return false;
+    }
+
+    static inet_pton_func cached = nullptr;
+    static bool attempted = false;
+
+    if (!attempted) {
+        HMODULE module = GetModuleHandleW(L"ws2_32.dll");
+        if (!module) {
+            module = LoadLibraryW(L"ws2_32.dll");
+        }
+        if (module) {
+            cached = reinterpret_cast<inet_pton_func>(GetProcAddress(module, "inet_pton"));
+        }
+        attempted = true;
+    }
+
+    if (cached) {
+        in_addr tmp{};
+        if (cached(AF_INET, host.c_str(), &tmp) == 1) {
+            *out = tmp;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static bool parse_ipv4(const std::string& host, in_addr* out)
 {
     if (!out) {
         return false;
     }
 
-#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600
-    in_addr tmp{};
-    if (inet_pton(AF_INET, host.c_str(), &tmp) == 1) {
-        *out = tmp;
+    if (inet_pton_compat(host, out)) {
         return true;
     }
-#endif
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
