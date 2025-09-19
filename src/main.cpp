@@ -306,7 +306,9 @@ case WM_APP_DEVICE: {
         if (new_idx != g_dev_index){
             g_dev_index = new_idx;
             // Re-init the engine on the new device
-            tts_init(g_eng, g_dev_index);
+            if (tts_init(g_eng, g_dev_index)){
+                tts_set_notify_hwnd(g_eng, g_hwnd);
+            }
         }
         // reflect back to GUI so the combo shows the actual device
         if (HWND dlg = gui_get_main_hwnd()){
