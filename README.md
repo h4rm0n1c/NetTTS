@@ -17,6 +17,15 @@ NetTTS keeps vintage-friendly speech synthesis fun instead of fiddly. It wraps F
 - **Bundled speech headers** – A known-good `speech.h` is vendored under `third_party/headers/` so the toolchain never breaks.
 - **Wine-tested workflow** – Mirrors the maintainer's Devuan + Wine environment, making it painless to automate or integrate.
 
+## Run the prebuilt binary
+
+1. Download the zipped executable from the [Releases](../../releases) page and unpack it somewhere handy.
+2. Install the Microsoft SAPI 4.0 runtime (`third_party/Dependencies/spchapi.exe` lives in the repo for safekeeping) if your machine doesn't already have it.
+3. Add the FlexTalk voice by extracting `third_party/Dependencies/flextalk.zip` and running the installer. FlexTalk traces its lineage through AT&T, Bell Laboratories, and the successors who have shepherded it since, and the credit belongs with them.
+4. Launch `nettts_gui.exe` on Windows or via Wine — for example `wrun ./build/nettts_gui.exe` in the maintainer's setup.
+
+Want to coax a little melody out of it? The [NetTTS sing-along gist](https://gist.github.com/h4rm0n1c/2ddaa14c03be25c2072347a1b27e25da) has a ready-made script that keeps the inevitable rickroll wink subtle.
+
 ## Quick start build (Linux host)
 
 ```bash
