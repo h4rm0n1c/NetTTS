@@ -382,11 +382,6 @@ case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
         kick_if_idle();
-        // Fallback: if nothing else was queued, make sure the GUI flips back to
-        // "Speak" even if the audio sink never sent WM_APP_TTS_AUDIO_DONE.
-        if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
-            gui_notify_tts_state(false);
-        }
     }
     return 0;
 }
