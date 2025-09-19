@@ -1,0 +1,58 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main          # keep regular build artifacts for every main push
+    tags:
+      - '*'           # also run whenever any tag is pushed
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MinGW toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make mingw-w64 g++-mingw-w64-i686
+
+      - name: Build NetTTS
+        run: make -f Makefile.mingw -j2
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nettts_gui
+          path: build/nettts_gui.exe
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MinGW toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make mingw-w64 g++-mingw-w64-i686
+
+      - name: Build NetTTS
+        run: make -f Makefile.mingw -j2
+
+      - name: Package executable
+        run: |
+          mkdir -p dist
+          cp build/nettts_gui.exe dist/
+          cd dist
+          zip nettts_gui.zip nettts_gui.exe
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/nettts_gui.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
