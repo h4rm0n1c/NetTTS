@@ -1,5 +1,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
 #pragma comment(lib, "ws2_32.lib")
 
 #include "log.hpp"
@@ -22,6 +23,67 @@ static HWND   g_hwnd   = nullptr;
 static std::wstring g_host = L"127.0.0.1";
 static int          g_port = 5555;
 
+using inet_pton_func = INT (WSAAPI*)(INT, const char*, void*);
+
+static bool inet_pton_compat(const std::string& host, in_addr* out)
+{
+    if (!out) {
+        return false;
+    }
+
+    static inet_pton_func cached = nullptr;
+    static bool attempted = false;
+
+    if (!attempted) {
+        HMODULE module = GetModuleHandleW(L"ws2_32.dll");
+        if (!module) {
+            module = LoadLibraryW(L"ws2_32.dll");
+        }
+        if (module) {
+            cached = reinterpret_cast<inet_pton_func>(GetProcAddress(module, "inet_pton"));
+        }
+        attempted = true;
+    }
+
+    if (cached) {
+        in_addr tmp{};
+        if (cached(AF_INET, host.c_str(), &tmp) == 1) {
+            *out = tmp;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool parse_ipv4(const std::string& host, in_addr* out)
+{
+    if (!out) {
+        return false;
+    }
+
+    if (inet_pton_compat(host, out)) {
+        return true;
+    }
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    int addr_len = sizeof(addr);
+    if (WSAStringToAddressA(const_cast<char*>(host.c_str()), AF_INET, nullptr,
+                            reinterpret_cast<sockaddr*>(&addr), &addr_len) == 0) {
+        *out = addr.sin_addr;
+        return true;
+    }
+
+    unsigned long raw = inet_addr(host.c_str());
+    if (raw != INADDR_NONE || host == "255.255.255.255") {
+        out->S_un.S_addr = raw;
+        return true;
+    }
+
+    return false;
+}
+
 // ---- server state ----
 static std::atomic<bool> g_server_running{false};
 
@@ -42,9 +104,11 @@ static DWORD WINAPI server_thread(LPVOID){
     addr.sin_port   = htons( (u_short)g_port );
 
     std::string hostA = w_to_u8(g_host);
-    if (inet_pton(AF_INET, hostA.c_str(), &addr.sin_addr) != 1) {
-        dprintf("[net] inet_pton failed for host '%s', using 127.0.0.1", hostA.c_str());
-        inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+    if (!parse_ipv4(hostA, &addr.sin_addr)) {
+        dprintf("[net] failed to parse host '%s', using 127.0.0.1", hostA.c_str());
+        if (!parse_ipv4("127.0.0.1", &addr.sin_addr)) {
+            addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        }
     }
 
     g_listen = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
