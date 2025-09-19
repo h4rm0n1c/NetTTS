@@ -62,7 +62,7 @@ static void dbg(const wchar_t* fmt, ...) {
     OutputDebugStringW(L"\n");
     char u8[2048];
     int n = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, u8, sizeof(u8), nullptr, nullptr);
-    if (n > 0) dprintf("%s\n", u8);
+    if (n > 0) dprintf("%s", u8);
 }
 
 // -----------------------------------------------------------
