@@ -24,7 +24,7 @@ NetTTS keeps vintage-friendly speech synthesis fun instead of fiddly. It wraps F
 3. Add the FlexTalk voice by extracting `third_party/Dependencies/flextalk.zip` and running the installer. FlexTalk traces its lineage through AT&T, Bell Laboratories, and the successors who have shepherded it since, and the credit belongs with them.
 4. Launch `nettts_gui.exe` on Windows or via Wine — for example `wrun ./build/nettts_gui.exe` in the maintainer's setup.
 
-Want to coax a little melody out of it? The [NetTTS sing-along gist](https://gist.github.com/h4rm0n1c/2ddaa14c03be25c2072347a1b27e25da) has a ready-made script that keeps the inevitable rickroll wink subtle.
+Want to coax a little melody out of it? The [NetTTS sing-along gist](https://gist.github.com/h4rm0n1c/2ddaa14c03be25c2072347a1b27e25da) has a ready-made script to rick roll.
 
 ## Quick start build (Linux host)
 
