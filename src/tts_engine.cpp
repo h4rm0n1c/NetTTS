@@ -100,15 +100,15 @@ struct BufSinkW : public ITTSBufNotifySink, public ITTSNotifySink {
     // ---- ITTSBufNotifySink (QWORD tokens) ----
     STDMETHOD(TextDataStarted)(QWORD /*token*/) {
         if (m_eng) {
-            m_eng->inflight.fetch_add(1, std::memory_order_relaxed);
+            m_eng->inflight.fetch_add(1, std::memory_order_acq_rel);
             if (m_eng->notify_hwnd) PostMessageW(m_eng->notify_hwnd, WM_APP_TTS_TEXT_START, 0, 0);
         }
         return S_OK;
     }
     STDMETHOD(TextDataDone)(QWORD /*token*/, DWORD /*hrFlags*/) {
         if (m_eng) {
-            long v = m_eng->inflight.fetch_sub(1, std::memory_order_relaxed);
-            if (v <= 0) m_eng->inflight.store(0, std::memory_order_relaxed);
+            long v = m_eng->inflight.fetch_sub(1, std::memory_order_acq_rel);
+            if (v <= 0) m_eng->inflight.store(0, std::memory_order_release);
             if (m_eng->notify_hwnd) PostMessageW(m_eng->notify_hwnd, WM_APP_TTS_TEXT_DONE, 0, 0);
         }
         return S_OK;

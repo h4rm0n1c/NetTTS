@@ -139,7 +139,7 @@ static bool maybe_handle_inline_cmds(const std::string& line){
 // If the NEXT queued item is a standalone \!br, append it to the same speak
 // so vendor pauses anchored to a boundary still work naturally.
 static void kick_if_idle(){
-    if (g_eng.inflight.load(std::memory_order_relaxed) > 0) return;
+    if (g_eng.inflight.load(std::memory_order_acquire) > 0) return;
     if (g_q.empty()) return;
 
     auto is_just_br = [](const std::wstring& s)->bool{
@@ -169,9 +169,12 @@ static void kick_if_idle(){
 }
 
 static void notify_idle_if_done(bool log_audio_done){
-    if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
+    if (g_inflight_local == 0 && g_q.empty()) {
         gui_notify_tts_state(false);
-        if (log_audio_done && g_headless) dprintf("[tts] audio done");
+        if (log_audio_done && g_headless) {
+            long engine_inflight = g_eng.inflight.load(std::memory_order_acquire);
+            dprintf("[tts] audio done (engine inflight=%ld)", engine_inflight);
+        }
     }
 }
 
@@ -390,7 +393,7 @@ case WM_APP_TTS_TEXT_START:
 
 case WM_APP_TTS_TEXT_DONE: {
     if (g_inflight_local > 0) g_inflight_local--;
-    if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
+    if (g_eng.inflight.load(std::memory_order_acquire) == 0) {
         kick_if_idle();
     }
     notify_idle_if_done(false);
