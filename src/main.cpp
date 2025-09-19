@@ -1,6 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <commctrl.h>
 #include <shellapi.h>
 #include <string>
 #include <deque>
@@ -10,6 +9,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include "log.hpp"
+#include "app_cli.hpp"
+#include "app_bootstrap.hpp"
+#include "app_window.hpp"
 #include "vox_parser.hpp"
 #include "tts_engine.hpp"
 
@@ -227,6 +229,16 @@ static UINT_PTR g_posn_timer = 0;
 static void start_posn_poll(){ if (!g_posn_timer && g_posn_poll_ms>0) g_posn_timer = SetTimer(g_hwnd, 42, (UINT)g_posn_poll_ms, nullptr); }
 static void stop_posn_poll(){ if (g_posn_timer){ KillTimer(g_hwnd, g_posn_timer); g_posn_timer=0; } }
 
+static bool on_common_timer(HWND, UINT_PTR timer_id, void* /*user*/);
+static void on_common_destroy(HWND, void* /*user*/);
+
+static const AppWindowCallbacks kWindowCallbacks = {
+    on_common_timer,
+    nullptr,
+    on_common_destroy,
+    nullptr
+};
+
 // --- VOX debug logging (guarded by g_headless) ---
 static std::string replace_all(std::string s, const std::string& a, const std::string& b){
     size_t p = 0;
@@ -309,6 +321,11 @@ static void enqueue_incoming_text(const std::string& line){
 // ------------------------------------------------------------------
 // WndProc
 static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l){
+    AppWindowHandled common = handle_common_window_messages(h, m, w, l, &kWindowCallbacks);
+    if (common.handled){
+        return common.result;
+    }
+
     switch(m){
 
 case WM_APP_ATTRS:{
@@ -416,83 +433,123 @@ case WM_APP_TTS_AUDIO_DONE: {
     }
     return 0;
 }
-
-
-
-    case WM_TIMER:
-    if (w == g_posn_timer) {
-        if (tts_supports_posn(g_eng)) {
-            DWORD p=0; 
-            if (tts_posn_get(g_eng, &p)) {
-                dprintf("[posn] %lu", (unsigned long)p);
-            }
-        }
-        return 0;
-    }
-
-        break;
-
-    case WM_CLOSE: DestroyWindow(h); return 0;
-    case WM_DESTROY:
-        stop_posn_poll();
-        PostQuitMessage(0);
-        return 0;
     }
     return DefWindowProcW(h, m, w, l);
 }
 
 // ------------------------------------------------------------------
 // CLI
-static void parse_cmdline(){
-    int argc=0; LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    if (!argv) return;
-    for (int i=1;i<argc;i++){
-        std::wstring a = argv[i];
-        if (a==L"--help" || a == L"-h" || a == L"/?") { g_cli_help = true; }
-else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
-    if (!g_headless) AllocConsole(); // or your own console attach
-    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    auto put = [&](const std::wstring& s){
-        DWORD w; WriteConsoleW(h, s.c_str(), (DWORD)s.size(), &w, nullptr);
-        WriteConsoleW(h, L"\r\n", 2, &w, nullptr);
-    };
-    put(L"Device index mapping (use with --devnum):");
-    put(L"  -1 : (Default output device)");
-    UINT ndev = waveOutGetNumDevs();
-    for (UINT di=0; di<ndev; di++){
-        WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(di, &caps, sizeof(caps));
-        wchar_t line[512]; _snwprintf(line, 511, L"  %u : %ls", di, caps.szPname);
-        put(line);
+struct CliExtraData {
+    bool* vox_enabled;
+    bool* vox_clean;
+    bool* selftest;
+};
+
+static bool handle_nettts_cli_option(const std::wstring& option,
+                                     int&                /*index*/,
+                                     int                 /*argc*/,
+                                     wchar_t**           /*argv*/,
+                                     AppCliContext&      ctx,
+                                     void*               user_data){
+    auto* extra = static_cast<CliExtraData*>(user_data);
+
+    if (option == L"--vox"){
+        if (extra && extra->vox_enabled){
+            *extra->vox_enabled = true;
+        }
+        if (extra && extra->vox_clean){
+            *extra->vox_clean = false;
+        }
+        return true;
     }
-    ExitProcess(0);
+
+    if (option == L"--voxclean"){
+        if (extra && extra->vox_enabled){
+            *extra->vox_enabled = true;
+        }
+        if (extra && extra->vox_clean){
+            *extra->vox_clean = true;
+        }
+        return true;
+    }
+
+    if (option == L"--selftest"){
+        if (extra && extra->selftest){
+            *extra->selftest = true;
+        }
+        return true;
+    }
+
+    if (option == L"--list-devices"){
+        app_cli_ensure_console(ctx);
+        HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (h && h != INVALID_HANDLE_VALUE){
+            auto put = [&](const std::wstring& s){
+                DWORD written = 0;
+                WriteConsoleW(h, s.c_str(), (DWORD)s.size(), &written, nullptr);
+                WriteConsoleW(h, L"\r\n", 2, &written, nullptr);
+            };
+            put(L"Device index mapping (use with --devnum):");
+            put(L"  -1 : (Default output device)");
+            UINT ndev = waveOutGetNumDevs();
+            for (UINT di = 0; di < ndev; ++di){
+                WAVEOUTCAPSW caps{};
+                waveOutGetDevCapsW(di, &caps, sizeof(caps));
+                wchar_t line[512];
+                _snwprintf(line, 511, L"  %u : %ls", di, caps.szPname);
+                put(line);
+            }
+        }
+        ctx.result.exit_requested = true;
+        ctx.result.exit_code      = 0;
+        return true;
+    }
+
+    return false;
 }
-        else if (a==L"--runserver" || a==L"--startserver") g_runserver=true;
-        else if (a==L"--headless" || a==L"--verbose") g_headless=true;
-        else if (a==L"--log" && i+1<argc){ log_set_path(argv[++i]); }
-        else if (a==L"--vox"){ g_vox_enabled = true; }
-        else if (a==L"--voxclean") { g_vox_enabled = true; g_vox_clean = true; }
-        else if (a==L"--host" && i+1<argc) g_host = argv[++i];
-        else if (a==L"--port" && i+1<argc) g_port = _wtoi(argv[++i]);
-        else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
-        else if (a==L"--posn-ms" && i+1<argc) g_posn_poll_ms = _wtoi(argv[++i]);
-        else if (a==L"--selftest") g_selftest=true;
+
+static bool on_common_timer(HWND, UINT_PTR timer_id, void*){
+    if (timer_id != g_posn_timer){
+        return false;
     }
-    LocalFree(argv);
+    if (tts_supports_posn(g_eng)){
+        DWORD p = 0;
+        if (tts_posn_get(g_eng, &p)){
+            dprintf("[posn] %lu", (unsigned long)p);
+        }
+    }
+    return true;
+}
+
+static void on_common_destroy(HWND, void*){
+    stop_posn_poll();
 }
 
 // ------------------------------------------------------------------
 // WinMain
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
-    INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_WIN95_CLASSES | ICC_LINK_CLASS};
-    if (!InitCommonControlsEx(&icc)){
-        icc.dwICC = ICC_WIN95_CLASSES;
-        InitCommonControlsEx(&icc);
+    app_init_common_controls();
+
+    CliExtraData extra{&g_vox_enabled, &g_vox_clean, &g_selftest};
+    AppCliHooks hooks{handle_nettts_cli_option, &extra};
+    AppCliResult cli = parse_app_cli(&hooks);
+
+    g_runserver    = cli.run_server;
+    g_headless     = cli.headless;
+    g_host         = cli.host;
+    g_port         = cli.port;
+    g_dev_index    = cli.device_index;
+    g_posn_poll_ms = cli.posn_poll_ms;
+    g_cli_help     = cli.help_requested;
+
+    if (cli.has_log_path){
+        log_set_path(cli.log_path);
     }
+    log_set_verbose(cli.verbose_logging);
 
-    parse_cmdline();
-
-    if (g_headless || g_cli_help) log_attach_console();
-    log_set_verbose(g_headless);
+    if (cli.exit_requested){
+        return cli.exit_code;
+    }
 
     if (g_cli_help) {
         show_help_and_exit(false);
@@ -501,21 +558,36 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
 
     bool show_gui = !g_headless;
 
-    // Window
-    WNDCLASSEXW wc{sizeof(wc)};
-    wc.lpszClassName = L"NetTTS.EventHandler";
-    wc.hInstance     = hInst;
-    wc.lpfnWndProc   = WndProc;
-    wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-    wc.hIcon   = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP),
-                                 IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR);
-    wc.hIconSm = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP),
-                                 IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
-    RegisterClassExW(&wc);
+    AppWindowClass wc{};
+    wc.style       = 0;
+    wc.class_name  = L"NetTTS.EventHandler";
+    wc.wnd_proc    = WndProc;
+    wc.instance    = hInst;
+    wc.cursor      = LoadCursor(nullptr, IDC_ARROW);
+    wc.icon        = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP),
+                                       IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR);
+    wc.icon_small  = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_APP),
+                                       IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
+    app_register_window_class(wc);
 
-    g_hwnd = CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, L"NetTTS Eventhandler",
-                             WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 200, 200,
-                             nullptr, nullptr, hInst, nullptr);
+    AppWindowCreate create{};
+    create.ex_style    = WS_EX_APPWINDOW;
+    create.class_name  = wc.class_name;
+    create.window_name = L"NetTTS Eventhandler";
+    create.style       = WS_OVERLAPPEDWINDOW;
+    create.x           = CW_USEDEFAULT;
+    create.y           = CW_USEDEFAULT;
+    create.width       = 200;
+    create.height      = 200;
+    create.parent      = nullptr;
+    create.menu        = nullptr;
+    create.instance    = hInst;
+    create.param       = nullptr;
+
+    g_hwnd = app_create_hidden_window(create);
+    if (!g_hwnd){
+        return 1;
+    }
     ShowWindow(g_hwnd, SW_HIDE);
 
     HWND hDlg = nullptr;
@@ -563,13 +635,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         (void)tts_speak(g_eng, literal, /*force_tagged*/false);
     }
 
-    MSG msg;
-    while (GetMessageW(&msg, nullptr, 0, 0) > 0){
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
+    int pump_result = app_run_message_loop();
 
     tts_shutdown(g_eng);
     CoUninitialize();
-    return 0;
+    return pump_result;
 }
