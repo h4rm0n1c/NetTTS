@@ -34,9 +34,13 @@ Need a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinst
 ./scripts/winetricks/setup_nettts_prefix.sh
 ```
 
-The script leans on winetricks to apply `winxp`, `vcrun6`, and `mfc42`, downloads the SAPI runtime, FlexTalk voice archive, and
-the `v0.95c` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and drops a Start Menu shortcut under `C:\\Users\\Public\\Start Menu\\Programs`. See
-[docs/winetricks.md](docs/winetricks.md) for prerequisites and additional options.
+By default everything lands under `~/nettts/`: the Wine prefix lives in `~/nettts/wineprefix/`, helper scripts go into `~/nettts/bin/`, configuration in `~/nettts/etc/`, and `/var/log/nettts.log` is used for daemon logging. Override the base location with `--root-dir <path>` (or point at an existing prefix with `--wineprefix`). The script leans on winetricks to apply `winxp`, `vcrun6`, and `mfc42`, downloads the SAPI runtime, FlexTalk voice archive, and the `v0.95c` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, drops a Start Menu shortcut under `C\Users\Public\Start Menu\Programs`, and seeds utility launchers:
+
+- `~/nettts/bin/nettts-daemon.sh` – start/stop the headless TCP server, push test utterances (`speak`), and refresh device lists.
+- `~/nettts/bin/nettts-gui.sh` – launch the GUI build inside the managed prefix.
+- `~/nettts/bin/flextalk-controlpanel.sh` – pop open the FlexTalk control panel (`C\windows\system32\flextalk.cpl`).
+
+See [docs/winetricks.md](docs/winetricks.md) for prerequisites, detailed options, and daemon tips.
 
 ## Quick start build (Linux host)
 
