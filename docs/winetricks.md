@@ -13,7 +13,9 @@ Install these host tools before running the helper:
 - `curl`
 - `unzip`
 
-The helper expects to be launched from the repository root so it can reach the vendored SAPI 4.0 runtime and FlexTalk installer.
+By default the helper pulls the SAPI 4.0 runtime and FlexTalk voice archive directly from the canonical URLs in this repository,
+so you do not need the `third_party/Dependencies` directory checked out locally. Pass alternate URLs or file paths if you keep
+local mirrors.
 
 ## Usage
 
@@ -27,11 +29,13 @@ The helper expects to be launched from the repository root so it can reach the v
 - `--wineserver <path>` – Alternate `wineserver` binary to use.
 - `--wine-bin <path>` – Alternate `wine` binary to use (handy if you wrap Wine with a script such as `wrun`).
 - `--nettts-url <URL>` – Override the NetTTS download location (defaults to the `v0.95c` release zip).
+- `--sapi-url <URL>` – Override the SAPI runtime download (defaults to the `spchapi.exe` stored in this repo).
+- `--flextalk-url <URL>` – Override the FlexTalk voice archive download (defaults to the `flextalk.zip` stored in this repo).
 
 The script forces `WINEARCH=win32` when the prefix is first created, installs the Windows XP compatibility layer, and pulls in
-both `vcrun6` and `mfc42` via winetricks. It then launches the SAPI 4.0 runtime installer, unpacks FlexTalk to a temporary
-folder, runs its `SETUP.EXE`, and finally downloads the `v0.95c` NetTTS release zip (unless overridden) and copies the
-extracted executable into `C:\nettts` inside the prefix.
+both `vcrun6` and `mfc42` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local
+paths you supplied), launches them in sequence, and finally grabs the `v0.95c` NetTTS release zip (unless overridden) before
+copying the extracted executable into `C:\nettts` inside the prefix.
 
 During the two GUI installer steps stay nearby and click through the dialogs — the script pauses until they complete.
 

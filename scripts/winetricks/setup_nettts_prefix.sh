@@ -2,6 +2,8 @@
 set -euo pipefail
 
 DEFAULT_NETTTS_URL="https://github.com/h4rm0n1c/NetTTS/releases/download/v0.95c/nettts_gui.zip"
+DEFAULT_SAPI_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/spchapi.exe"
+DEFAULT_FLEXTALK_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/flextalk.zip"
 
 usage() {
         cat <<USAGE
@@ -14,6 +16,8 @@ Options:
   --wineserver <path>   Override the wineserver binary (default: \$WINESERVER or "wineserver")
   --wine-bin <path>     Override the wine binary (default: \$WINE or "wine")
   --nettts-url <URL>    Override the NetTTS download (default: $DEFAULT_NETTTS_URL)
+  --sapi-url <URL>      Override the SAPI runtime download (default: $DEFAULT_SAPI_URL)
+  --flextalk-url <URL>  Override the FlexTalk archive download (default: $DEFAULT_FLEXTALK_URL)
   -h, --help            Show this help text
 USAGE
 }
@@ -28,14 +32,6 @@ require_cmd() {
         command -v "$cmd" >/dev/null 2>&1 || error "Required command '$cmd' is not available"
 }
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-SAPI_INSTALLER="$REPO_ROOT/third_party/Dependencies/spchapi.exe"
-FLEXTALK_ARCHIVE="$REPO_ROOT/third_party/Dependencies/flextalk.zip"
-
-[[ -f "$SAPI_INSTALLER" ]] || error "Missing SAPI installer at $SAPI_INSTALLER"
-[[ -f "$FLEXTALK_ARCHIVE" ]] || error "Missing FlexTalk archive at $FLEXTALK_ARCHIVE"
-
 DEFAULT_PREFIX=${WINEPREFIX:-"$HOME/.wine-nettts"}
 DEFAULT_WINESERVER=${WINESERVER:-wineserver}
 DEFAULT_WINE_BIN=${WINE:-wine}
@@ -44,6 +40,8 @@ WINEPREFIX="$DEFAULT_PREFIX"
 WINESERVER_BIN="$DEFAULT_WINESERVER"
 WINE_BIN="$DEFAULT_WINE_BIN"
 NETTTS_URL="$DEFAULT_NETTTS_URL"
+SAPI_URL="$DEFAULT_SAPI_URL"
+FLEXTALK_URL="$DEFAULT_FLEXTALK_URL"
 
 while [[ $# -gt 0 ]]; do
         case $1 in
@@ -67,6 +65,16 @@ while [[ $# -gt 0 ]]; do
                 [[ $# -gt 0 ]] || error "--nettts-url requires a value"
                 NETTTS_URL=$1
                 ;;
+        --sapi-url)
+                shift
+                [[ $# -gt 0 ]] || error "--sapi-url requires a value"
+                SAPI_URL=$1
+                ;;
+        --flextalk-url)
+                shift
+                [[ $# -gt 0 ]] || error "--flextalk-url requires a value"
+                FLEXTALK_URL=$1
+                ;;
         -h|--help)
                 usage
                 exit 0
@@ -88,6 +96,35 @@ require_cmd "$WINESERVER_BIN"
 export WINEPREFIX
 export WINESERVER=$WINESERVER_BIN
 
+TMPDIR=$(mktemp -d)
+cleanup() {
+        rm -rf "$TMPDIR"
+}
+trap cleanup EXIT
+
+download_payload() {
+        local source=$1
+        local destination=$2
+        local label=$3
+
+        if [[ -f "$source" ]]; then
+                printf '[INFO] Using local %s at %s\n' "$label" "$source"
+                cp -f "$source" "$destination"
+                return
+        fi
+
+        if [[ "$source" == file://* ]]; then
+                local file_path=${source#file://}
+                [[ -f "$file_path" ]] || error "$label not found at $file_path"
+                printf '[INFO] Using local %s at %s\n' "$label" "$file_path"
+                cp -f "$file_path" "$destination"
+                return
+        fi
+
+        printf '[INFO] Downloading %s from %s...\n' "$label" "$source"
+        curl -fL "$source" -o "$destination"
+}
+
 PREFIX_CREATED=0
 if [[ ! -d "$WINEPREFIX" || ! -f "$WINEPREFIX/system.reg" ]]; then
         export WINEARCH=win32
@@ -101,16 +138,14 @@ printf '\n[INFO] Preparing Wine prefix at %s\n' "$WINEPREFIX"
 printf '[INFO] Installing winxp, vcrun6, and mfc42 via winetricks...\n'
 winetricks -q winxp vcrun6 mfc42
 
+SAPI_INSTALLER="$TMPDIR/sapi4_runtime.exe"
+download_payload "$SAPI_URL" "$SAPI_INSTALLER" "SAPI runtime"
 printf '[INFO] Running SAPI 4.0 runtime installer...\n'
 "$WINE_BIN" start /unix /wait "$SAPI_INSTALLER"
 "$WINESERVER_BIN" -w
 
-TMPDIR=$(mktemp -d)
-cleanup() {
-        rm -rf "$TMPDIR"
-}
-trap cleanup EXIT
-
+FLEXTALK_ARCHIVE="$TMPDIR/flextalk.zip"
+download_payload "$FLEXTALK_URL" "$FLEXTALK_ARCHIVE" "FlexTalk archive"
 printf '[INFO] Extracting FlexTalk voice installer...\n'
 unzip -q "$FLEXTALK_ARCHIVE" -d "$TMPDIR"
 FLEXTALK_SETUP=$(find "$TMPDIR" -maxdepth 3 -type f -iname 'setup.exe' | head -n 1)
@@ -131,8 +166,7 @@ if [[ -z "$NETTTS_FILENAME" || "$NETTTS_EXT" == "$NETTTS_FILENAME" ]]; then
 fi
 NETTTS_DOWNLOAD="$NETTTS_TMP.$NETTTS_EXT"
 mv "$NETTTS_TMP" "$NETTTS_DOWNLOAD"
-printf '[INFO] Downloading NetTTS from %s...\n' "$NETTTS_URL"
-curl -fL "$NETTTS_URL" -o "$NETTTS_DOWNLOAD"
+download_payload "$NETTTS_URL" "$NETTTS_DOWNLOAD" "NetTTS payload"
 
 NETTTS_TARGET_BASENAME="nettts_gui.exe"
 NETTTS_SOURCE=""

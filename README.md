@@ -34,8 +34,8 @@ Need a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinst
 ./scripts/winetricks/setup_nettts_prefix.sh
 ```
 
-The script leans on winetricks to apply `winxp`, `vcrun6`, and `mfc42`, launches the bundled SAPI/FlexTalk installers, downloads
-the `v0.95c` NetTTS release zip (override with `--nettts-url` if you need a different build) into `C:\nettts`, and drops a Start Menu shortcut under `C:\\Users\\Public\\Start Menu\\Programs`. See
+The script leans on winetricks to apply `winxp`, `vcrun6`, and `mfc42`, downloads the SAPI runtime, FlexTalk voice archive, and
+the `v0.95c` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and drops a Start Menu shortcut under `C:\\Users\\Public\\Start Menu\\Programs`. See
 [docs/winetricks.md](docs/winetricks.md) for prerequisites and additional options.
 
 ## Quick start build (Linux host)
