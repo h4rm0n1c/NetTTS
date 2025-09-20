@@ -246,12 +246,19 @@ bOpt1=0
 bOpt2=0
 EOF
 
+FLEXTALK_SETUP_DIR=$(cd "$(dirname "$FLEXTALK_SETUP")" && pwd -P)
+FLEXTALK_SETUP_EXE=$(basename "$FLEXTALK_SETUP")
+FLEXTALK_SETUP_ISS="$FLEXTALK_SETUP_DIR/SETUP.ISS"
+cp -f "$FLEXTALK_ISS" "$FLEXTALK_SETUP_ISS"
+
 FLEXTALK_LOG="$TMPDIR/flextalk-install.log"
-FLEXTALK_WIN_ISS=$(winepath -w "$FLEXTALK_ISS")
 FLEXTALK_WIN_LOG=$(winepath -w "$FLEXTALK_LOG")
 
 printf '[INFO] Running FlexTalk installer silently...\n'
-"$WINE_BIN" "$FLEXTALK_SETUP" -s -SMS "-f1$FLEXTALK_WIN_ISS" "-f2$FLEXTALK_WIN_LOG"
+(
+        cd "$FLEXTALK_SETUP_DIR"
+        "$WINE_BIN" "$FLEXTALK_SETUP_EXE" -s -SMS "-f2$FLEXTALK_WIN_LOG"
+)
 "$WINESERVER_BIN" -w
 
 FLEXTALK_INSTALL_WIN='C:\\Program Files\\Watson21\\'
