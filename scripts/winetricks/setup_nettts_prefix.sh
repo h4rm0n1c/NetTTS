@@ -196,7 +196,7 @@ if [[ -z "$FLEXTALK_INSTALL_WIN" ]]; then
         FLEXTALK_INSTALL_WIN='C:\\Program Files\\Watson21'
 fi
 if [[ ${FLEXTALK_INSTALL_WIN: -1} != \\ ]]; then
-        FLEXTALK_INSTALL_WIN+="\"
+        FLEXTALK_INSTALL_WIN+="\\"
 fi
 printf '[INFO] FlexTalk target directory: %s\n' "$FLEXTALK_INSTALL_WIN"
 
