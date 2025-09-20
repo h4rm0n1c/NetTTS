@@ -288,14 +288,14 @@ if "$WINE_BIN" wscript.exe "$SHORTCUT_VBS_WIN_PATH" "$SHORTCUT_WIN_PATH" "$TARGE
         printf '[INFO] Shortcut created at %s\n' "$SHORTCUT_PATH"
         SHORTCUT_CREATED=1
 else
-        warn "Unable to create Start Menu shortcut automatically (wscript.exe missing?)."
+        warn 'Unable to create Start Menu shortcut automatically (wscript.exe missing?).'
         warn "NetTTS is still installed at $NETTTS_DIR; create a shortcut manually if needed."
 fi
 
 if (( SHORTCUT_CREATED )); then
         SHORTCUT_STATUS="$SHORTCUT_PATH"
 else
-        SHORTCUT_STATUS="not created (see warnings above)"
+        SHORTCUT_STATUS='not created (see warnings above)'
 fi
 
 BASE_DIR="$ROOT_DIR"
