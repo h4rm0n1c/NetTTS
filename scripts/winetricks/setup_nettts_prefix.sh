@@ -536,7 +536,9 @@ start_daemon() {
         require_cmd "$WINE_CMD"
         require_cmd "$WINESERVER_CMD"
         if is_running; then
-                warn "NetTTS daemon already running (PID $(read_pid))"
+                local current_pid
+                current_pid=$(read_pid) || current_pid="?"
+                warn "NetTTS daemon already running; PID $current_pid"
                 return 0
         fi
         load_config
@@ -589,7 +591,9 @@ stop_daemon() {
 
 status_daemon() {
         if is_running; then
-                printf 'NetTTS daemon running (PID %s)\n' "$(read_pid)"
+                local current_pid
+                current_pid=$(read_pid) || current_pid="?"
+                printf 'NetTTS daemon running; PID %s\n' "$current_pid"
                 return 0
         fi
         printf 'NetTTS daemon is not running\n'
