@@ -270,19 +270,20 @@ SHORTCUT_PATH="$SHORTCUT_DIR/NetTTS.lnk"
 SHORTCUT_WIN_PATH=$(winepath -w "$SHORTCUT_PATH")
 
 SHORTCUT_VBS=$(mktemp -p "$TMPDIR" shortcut.XXXXXX.vbs)
+SHORTCUT_VBS_WIN_PATH=$(winepath -w "$SHORTCUT_VBS")
 cat >"$SHORTCUT_VBS" <<'VBS'
 Set shell = WScript.CreateObject("WScript.Shell")
 Set shortcut = shell.CreateShortcut(WScript.Arguments(0))
 shortcut.TargetPath = WScript.Arguments(1)
 shortcut.WorkingDirectory = WScript.Arguments(2)
-shortcut.IconLocation = WScript.Arguments(1)
+shortcut.IconLocation = WScript.Arguments(3)
 shortcut.WindowStyle = 1
 shortcut.Save
 VBS
 
 printf '[INFO] Creating Start Menu shortcut...\n'
 SHORTCUT_CREATED=0
-if "$WINE_BIN" wscript.exe "$SHORTCUT_VBS" "$SHORTCUT_WIN_PATH" "$TARGET_WIN_PATH" "$WORKING_WIN_PATH" "$TARGET_WIN_PATH"; then
+if "$WINE_BIN" wscript.exe "$SHORTCUT_VBS_WIN_PATH" "$SHORTCUT_WIN_PATH" "$TARGET_WIN_PATH" "$WORKING_WIN_PATH" "$TARGET_WIN_PATH"; then
         "$WINESERVER_BIN" -w
         printf '[INFO] Shortcut created at %s\n' "$SHORTCUT_PATH"
         SHORTCUT_CREATED=1
