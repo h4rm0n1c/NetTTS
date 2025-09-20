@@ -180,9 +180,90 @@ unzip -q "$FLEXTALK_ARCHIVE" -d "$TMPDIR"
 FLEXTALK_SETUP=$(find "$TMPDIR" -maxdepth 3 -type f -iname 'setup.exe' | head -n 1)
 [[ -n "$FLEXTALK_SETUP" ]] || error "Could not locate FlexTalk setup.exe inside archive"
 
-printf '[INFO] Running FlexTalk installer...\n'
-"$WINE_BIN" "$FLEXTALK_SETUP"
+FLEXTALK_ISS="$TMPDIR/flextalk-silent.iss"
+cat >"$FLEXTALK_ISS" <<'EOF'
+[InstallShield Silent]
+Version=v5.00.000
+File=Response File
+
+[File Transfer]
+OverwrittenReadOnly=NoToAll
+
+[DlgOrder]
+Dlg0=SdWelcome-0
+Count=5
+Dlg1=SdLicense-0
+Dlg2=SdAskDestPath-0
+Dlg3=SdStartCopy-0
+Dlg4=SdFinish-0
+
+[SdWelcome-0]
+Result=1
+
+[SdLicense-0]
+Result=1
+
+[SdAskDestPath-0]
+szDir=C:\Program Files\Watson21\
+Result=1
+
+[SdStartCopy-0]
+Result=1
+
+[SdFinish-0]
+Result=1
+bOpt1=0
+bOpt2=0
+EOF
+
+FLEXTALK_GUID="{B9BD3860-44DB-101B-90A8-00AA003E4B50}"
+cat >>"$FLEXTALK_ISS" <<EOF
+
+[$FLEXTALK_GUID-DlgOrder]
+Dlg0=$FLEXTALK_GUID-SdWelcome-0
+Count=5
+Dlg1=$FLEXTALK_GUID-SdLicense-0
+Dlg2=$FLEXTALK_GUID-SdAskDestPath-0
+Dlg3=$FLEXTALK_GUID-SdStartCopy-0
+Dlg4=$FLEXTALK_GUID-SdFinish-0
+
+[$FLEXTALK_GUID-SdWelcome-0]
+Result=1
+
+[$FLEXTALK_GUID-SdLicense-0]
+Result=1
+
+[$FLEXTALK_GUID-SdAskDestPath-0]
+szDir=C:\\Program Files\\Watson21\\
+Result=1
+
+[$FLEXTALK_GUID-SdStartCopy-0]
+Result=1
+
+[$FLEXTALK_GUID-SdFinish-0]
+Result=1
+bOpt1=0
+bOpt2=0
+EOF
+
+FLEXTALK_LOG="$TMPDIR/flextalk-install.log"
+FLEXTALK_WIN_ISS=$(winepath -w "$FLEXTALK_ISS")
+FLEXTALK_WIN_LOG=$(winepath -w "$FLEXTALK_LOG")
+
+printf '[INFO] Running FlexTalk installer silently...\n'
+"$WINE_BIN" "$FLEXTALK_SETUP" -s -SMS "-f1$FLEXTALK_WIN_ISS" "-f2$FLEXTALK_WIN_LOG"
 "$WINESERVER_BIN" -w
+
+FLEXTALK_INSTALL_WIN='C:\\Program Files\\Watson21\\'
+FLEXTALK_INSTALL_UNIX=$(winepath -u "$FLEXTALK_INSTALL_WIN")
+if [[ ! -d "$FLEXTALK_INSTALL_UNIX" ]]; then
+        warn "FlexTalk silent installer did not create $FLEXTALK_INSTALL_WIN"
+        if [[ -f "$FLEXTALK_LOG" ]]; then
+                warn "Review the InstallShield log at $FLEXTALK_LOG for details"
+        fi
+        error "FlexTalk installation failed"
+fi
+printf '[INFO] FlexTalk installed at %s\n' "$FLEXTALK_INSTALL_UNIX"
 
 NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
 mkdir -p "$NETTTS_DIR"
