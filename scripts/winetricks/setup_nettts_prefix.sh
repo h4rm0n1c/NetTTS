@@ -253,11 +253,12 @@ cp -f "$FLEXTALK_ISS" "$FLEXTALK_SETUP_ISS"
 
 FLEXTALK_LOG="$TMPDIR/flextalk-install.log"
 FLEXTALK_WIN_LOG=$(winepath -w "$FLEXTALK_LOG")
+FLEXTALK_WIN_ISS=$(winepath -w "$FLEXTALK_SETUP_ISS")
 
 printf '[INFO] Running FlexTalk installer silently...\n'
 (
         cd "$FLEXTALK_SETUP_DIR"
-        "$WINE_BIN" "$FLEXTALK_SETUP_EXE" -s -SMS "-f2$FLEXTALK_WIN_LOG"
+        "$WINE_BIN" "$FLEXTALK_SETUP_EXE" /s /SMS "/f1$FLEXTALK_WIN_ISS" "/f2$FLEXTALK_WIN_LOG"
 )
 "$WINESERVER_BIN" -w
 
