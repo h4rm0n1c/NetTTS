@@ -168,7 +168,7 @@ winetricks -q winxp vcrun6 mfc42
 SAPI_INSTALLER="$TMPDIR/sapi4_runtime.exe"
 download_payload "$SAPI_URL" "$SAPI_INSTALLER" "SAPI runtime"
 printf '[INFO] Running SAPI 4.0 runtime installer...\n'
-"$WINE_BIN" start /unix /wait "$SAPI_INSTALLER"
+"$WINE_BIN" "$SAPI_INSTALLER"
 "$WINESERVER_BIN" -w
 
 FLEXTALK_ARCHIVE="$TMPDIR/flextalk.zip"
@@ -179,7 +179,7 @@ FLEXTALK_SETUP=$(find "$TMPDIR" -maxdepth 3 -type f -iname 'setup.exe' | head -n
 [[ -n "$FLEXTALK_SETUP" ]] || error "Could not locate FlexTalk setup.exe inside archive"
 
 printf '[INFO] Running FlexTalk installer...\n'
-"$WINE_BIN" start /unix /wait "$FLEXTALK_SETUP"
+"$WINE_BIN" "$FLEXTALK_SETUP"
 "$WINESERVER_BIN" -w
 
 NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
@@ -628,11 +628,7 @@ if [[ ! -f "$NETTTS_EXE" ]]; then
         exit 1
 fi
 
-if [[ ${WINE_CMD##*/} == wine ]]; then
-        exec env "WINEPREFIX=$WINEPREFIX" "$WINE_CMD" start /unix "$NETTTS_EXE" "$@"
-else
-        exec env "WINEPREFIX=$WINEPREFIX" "$WINE_CMD" "$NETTTS_EXE" "$@"
-fi
+exec env "WINEPREFIX=$WINEPREFIX" "$WINE_CMD" "$NETTTS_EXE" "$@"
 GUI
 chmod +x "$BIN_DIR/nettts-gui.sh"
 
@@ -682,7 +678,7 @@ cat <<EOF
 - Log file (create if needed): /var/log/nettts.log
 
 Launch example:
-  WINEPREFIX="$WINEPREFIX" "$WINE_BIN" start /unix "$NETTTS_TARGET"
+  WINEPREFIX="$WINEPREFIX" "$WINE_BIN" "$NETTTS_TARGET"
 
 If you prefer wrun:
   WINEPREFIX="$WINEPREFIX" wrun "$TARGET_WIN_PATH"

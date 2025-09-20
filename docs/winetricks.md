@@ -58,7 +58,7 @@ After a successful run you can expect:
   - `nettts-devices.txt` – latest snapshot from `nettts_gui.exe --list-devices`
 - `/var/log/nettts.log` – log file used by the daemon helper (create and chown if your user cannot write there)
 
-Launch NetTTS directly with `wine start /unix "$WINEPREFIX/drive_c/nettts/nettts_gui.exe"` (or swap in your `wrun` wrapper).
+Launch NetTTS directly with `wine "$WINEPREFIX/drive_c/nettts/nettts_gui.exe"` (or swap in your `wrun` wrapper).
 Re-running the script against the same prefix updates the executable in place while keeping the existing SAPI/FlexTalk setup and
 refreshing the helper scripts.
 
