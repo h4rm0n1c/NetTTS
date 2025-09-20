@@ -3,6 +3,8 @@ set -euo pipefail
 
 unset LD_PRELOAD LD_LIBRARY_PATH GTK3_MODULES GTK_MODULES GTK_PATH QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME || true
 
+INVOCATION_DIR=$(pwd -P)
+
 DEFAULT_NETTTS_URL="https://github.com/h4rm0n1c/NetTTS/releases/download/v0.95c/nettts_gui.zip"
 DEFAULT_SAPI_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/spchapi.exe"
 DEFAULT_FLEXTALK_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/flextalk.zip"
@@ -238,14 +240,24 @@ if [[ ${FLEXTALK_INSTALL_WIN: -1} != \\ ]]; then
 fi
 printf '[INFO] FlexTalk target directory: %s\n' "$FLEXTALK_INSTALL_WIN"
 
-FLEXTALK_LOG="$TMPDIR/flextalk-install.log"
+FLEXTALK_LOG="$INVOCATION_DIR/flextalk-install.log"
+if ! : >"$FLEXTALK_LOG" 2>/dev/null; then
+        warn "Unable to write FlexTalk log to $INVOCATION_DIR; falling back to temporary directory"
+        FLEXTALK_LOG="$TMPDIR/flextalk-install.log"
+        : >"$FLEXTALK_LOG"
+fi
+printf '[INFO] FlexTalk InstallShield log: %s\n' "$FLEXTALK_LOG"
 FLEXTALK_WIN_LOG=$(winepath -w "$FLEXTALK_LOG")
 FLEXTALK_WIN_ISS=$(winepath -w "$FLEXTALK_SETUP_ISS")
 
 printf '[INFO] Running FlexTalk installer silently...\n'
+FLEXTALK_WINEDEBUG='+typelib'
+if [[ -n ${WINEDEBUG:-} ]]; then
+        FLEXTALK_WINEDEBUG="$WINEDEBUG,$FLEXTALK_WINEDEBUG"
+fi
 (
         cd "$FLEXTALK_SETUP_DIR"
-        "$WINE_BIN" "$FLEXTALK_SETUP_EXE" -s -SMS "-f1$FLEXTALK_WIN_ISS" "-f2$FLEXTALK_WIN_LOG"
+        env WINEDEBUG="$FLEXTALK_WINEDEBUG" "$WINE_BIN" "$FLEXTALK_SETUP_EXE" -s -SMS "-f1$FLEXTALK_WIN_ISS" "-f2$FLEXTALK_WIN_LOG"
 )
 "$WINESERVER_BIN" -w
 
