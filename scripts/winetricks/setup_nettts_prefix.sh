@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DEFAULT_NETTTS_URL="https://github.com/h4rm0n1c/NetTTS/releases/download/v0.95c/nettts_gui.zip"
+
 usage() {
-        cat <<'USAGE'
-Usage: setup_nettts_prefix.sh [options] --nettts-url <URL>
+        cat <<USAGE
+Usage: setup_nettts_prefix.sh [options]
 
 Prepare a Wine prefix with SAPI 4.0, FlexTalk, and NetTTS installed.
 
 Options:
-  --wineprefix <path>   Target Wine prefix (default: $HOME/.wine-nettts or $WINEPREFIX if set)
-  --wineserver <path>   Override the wineserver binary (default: $WINESERVER or "wineserver")
-  --wine-bin <path>     Override the wine binary (default: $WINE or "wine")
-  --nettts-url <URL>    Download URL for the NetTTS executable (required)
+  --wineprefix <path>   Target Wine prefix (default: \$HOME/.wine-nettts or \$WINEPREFIX if set)
+  --wineserver <path>   Override the wineserver binary (default: \$WINESERVER or "wineserver")
+  --wine-bin <path>     Override the wine binary (default: \$WINE or "wine")
+  --nettts-url <URL>    Override the NetTTS download (default: $DEFAULT_NETTTS_URL)
   -h, --help            Show this help text
 USAGE
 }
@@ -41,7 +43,7 @@ DEFAULT_WINE_BIN=${WINE:-wine}
 WINEPREFIX="$DEFAULT_PREFIX"
 WINESERVER_BIN="$DEFAULT_WINESERVER"
 WINE_BIN="$DEFAULT_WINE_BIN"
-NETTTS_URL=""
+NETTTS_URL="$DEFAULT_NETTTS_URL"
 
 while [[ $# -gt 0 ]]; do
         case $1 in
@@ -75,11 +77,6 @@ while [[ $# -gt 0 ]]; do
         esac
         shift
 done
-
-[[ -n "$NETTTS_URL" ]] || {
-        usage
-        error "--nettts-url is required"
-}
 
 require_cmd "$WINE_BIN"
 require_cmd winetricks
@@ -127,16 +124,42 @@ NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
 mkdir -p "$NETTTS_DIR"
 
 NETTTS_TMP=$(mktemp -p "$TMPDIR" nettts.XXXXXX)
-printf '[INFO] Downloading NetTTS from %s...\n' "$NETTTS_URL"
-curl -fL "$NETTTS_URL" -o "$NETTTS_TMP"
-
-NETTTS_BASENAME=${NETTTS_URL##*/}
-if [[ "$NETTTS_BASENAME" != *.exe ]]; then
-        NETTTS_BASENAME="nettts_gui.exe"
+NETTTS_FILENAME=$(basename "${NETTTS_URL%%[?#]*}")
+NETTTS_EXT="${NETTTS_FILENAME##*.}"
+if [[ -z "$NETTTS_FILENAME" || "$NETTTS_EXT" == "$NETTTS_FILENAME" ]]; then
+        error "Unable to determine file type from NetTTS download URL: $NETTTS_URL"
 fi
-NETTTS_TARGET="$NETTTS_DIR/$NETTTS_BASENAME"
+NETTTS_DOWNLOAD="$NETTTS_TMP.$NETTTS_EXT"
+mv "$NETTTS_TMP" "$NETTTS_DOWNLOAD"
+printf '[INFO] Downloading NetTTS from %s...\n' "$NETTTS_URL"
+curl -fL "$NETTTS_URL" -o "$NETTTS_DOWNLOAD"
 
-mv "$NETTTS_TMP" "$NETTTS_TARGET"
+NETTTS_TARGET_BASENAME="nettts_gui.exe"
+NETTTS_SOURCE=""
+case "${NETTTS_EXT,,}" in
+zip)
+        NETTTS_EXTRACT_DIR="$TMPDIR/nettts_zip"
+        mkdir -p "$NETTTS_EXTRACT_DIR"
+        unzip -q "$NETTTS_DOWNLOAD" -d "$NETTTS_EXTRACT_DIR"
+        NETTTS_SOURCE=$(find "$NETTTS_EXTRACT_DIR" -maxdepth 3 -type f -iname 'nettts_gui.exe' | head -n 1)
+        if [[ -z "$NETTTS_SOURCE" ]]; then
+                NETTTS_SOURCE=$(find "$NETTTS_EXTRACT_DIR" -maxdepth 3 -type f -iname '*.exe' | head -n 1)
+        fi
+        [[ -n "$NETTTS_SOURCE" ]] || error "No executable found inside NetTTS archive"
+        NETTTS_TARGET_BASENAME=$(basename "$NETTTS_SOURCE")
+        ;;
+exe)
+        NETTTS_SOURCE="$NETTTS_DOWNLOAD"
+        NETTTS_TARGET_BASENAME="$NETTTS_FILENAME"
+        ;;
+*)
+        error "Unsupported NetTTS download type: .$NETTTS_EXT"
+        ;;
+esac
+
+NETTTS_TARGET="$NETTTS_DIR/$NETTTS_TARGET_BASENAME"
+
+cp -f "$NETTTS_SOURCE" "$NETTTS_TARGET"
 chmod +x "$NETTTS_TARGET" || true
 
 TARGET_WIN_PATH=$(winepath -w "$NETTTS_TARGET")

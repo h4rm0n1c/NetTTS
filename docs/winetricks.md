@@ -18,8 +18,7 @@ The helper expects to be launched from the repository root so it can reach the v
 ## Usage
 
 ```bash
-./scripts/winetricks/setup_nettts_prefix.sh \
-  --nettts-url "https://github.com/<owner>/NetTTS/releases/download/<tag>/nettts_gui.exe"
+./scripts/winetricks/setup_nettts_prefix.sh
 ```
 
 ### Common options
@@ -27,11 +26,12 @@ The helper expects to be launched from the repository root so it can reach the v
 - `--wineprefix <path>` – Target prefix to configure (defaults to `~/.wine-nettts` unless `WINEPREFIX` is already exported).
 - `--wineserver <path>` – Alternate `wineserver` binary to use.
 - `--wine-bin <path>` – Alternate `wine` binary to use (handy if you wrap Wine with a script such as `wrun`).
-- `--nettts-url <URL>` – Required. Download location for the NetTTS executable you want to install into the prefix.
+- `--nettts-url <URL>` – Override the NetTTS download location (defaults to the `v0.95c` release zip).
 
 The script forces `WINEARCH=win32` when the prefix is first created, installs the Windows XP compatibility layer, and pulls in
 both `vcrun6` and `mfc42` via winetricks. It then launches the SAPI 4.0 runtime installer, unpacks FlexTalk to a temporary
-folder, runs its `SETUP.EXE`, and finally downloads the requested NetTTS build into `C:\nettts` inside the prefix.
+folder, runs its `SETUP.EXE`, and finally downloads the `v0.95c` NetTTS release zip (unless overridden) and copies the
+extracted executable into `C:\nettts` inside the prefix.
 
 During the two GUI installer steps stay nearby and click through the dialogs — the script pauses until they complete.
 

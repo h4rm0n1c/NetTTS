@@ -31,12 +31,11 @@ Want to coax a little melody out of it? The [NetTTS sing-along gist](https://gis
 Need a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinstalled? Run the helper script:
 
 ```bash
-./scripts/winetricks/setup_nettts_prefix.sh \
-  --nettts-url "https://github.com/<owner>/NetTTS/releases/download/<tag>/nettts_gui.exe"
+./scripts/winetricks/setup_nettts_prefix.sh
 ```
 
 The script leans on winetricks to apply `winxp`, `vcrun6`, and `mfc42`, launches the bundled SAPI/FlexTalk installers, downloads
-the requested NetTTS build into `C:\nettts`, and drops a Start Menu shortcut under `C:\\Users\\Public\\Start Menu\\Programs`. See
+the `v0.95c` NetTTS release zip (override with `--nettts-url` if you need a different build) into `C:\nettts`, and drops a Start Menu shortcut under `C:\\Users\\Public\\Start Menu\\Programs`. See
 [docs/winetricks.md](docs/winetricks.md) for prerequisites and additional options.
 
 ## Quick start build (Linux host)
