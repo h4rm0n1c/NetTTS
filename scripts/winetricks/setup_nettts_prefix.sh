@@ -125,10 +125,11 @@ require_cmd "$WINESERVER_BIN"
 export WINEPREFIX
 export WINESERVER=$WINESERVER_BIN
 
-MSVCRT40_PATHS=(
-        "$WINEPREFIX/drive_c/windows/system32/msvcrt40.dll"
-        "$WINEPREFIX/drive_c/windows/system/msvcrt40.dll"
+MSVCRT40_SEARCH_DIRS=(
+        "$WINEPREFIX/drive_c/windows/system32"
+        "$WINEPREFIX/drive_c/windows/system"
 )
+MSVCRT40_CANDIDATE_NAMES=(msvcrt40.dll MSVCRT40.DLL)
 declare -A MSVCRT40_BACKUPS=()
 declare -A MSVCRT40_RESTORE_NEEDED=()
 
@@ -207,19 +208,22 @@ cp -f "$FLEXTALK_RESPONSE_SOURCE" "$FLEXTALK_SETUP_ISS"
 printf '[INFO] Using FlexTalk response file from %s\n' "$FLEXTALK_RESPONSE_SOURCE"
 
 MSVCRT40_STAGED=0
-for MSVCRT40_PATH in "${MSVCRT40_PATHS[@]}"; do
-        if [[ -f "$MSVCRT40_PATH" ]]; then
-                MSVCRT40_BACKUP="${MSVCRT40_PATH}.nettts-backup"
-                if cp -f "$MSVCRT40_PATH" "$MSVCRT40_BACKUP" && rm -f "$MSVCRT40_PATH"; then
-                        MSVCRT40_BACKUPS["$MSVCRT40_PATH"]="$MSVCRT40_BACKUP"
-                        MSVCRT40_RESTORE_NEEDED["$MSVCRT40_PATH"]=1
-                        MSVCRT40_STAGED=1
-                        printf '[INFO] Backed up existing msvcrt40.dll from %s to %s to avoid InstallShield prompts.\n' "$MSVCRT40_PATH" "$MSVCRT40_BACKUP"
-                else
-                        warn "Unable to stage msvcrt40.dll from $MSVCRT40_PATH; FlexTalk installer may prompt for confirmation"
-                        rm -f "$MSVCRT40_BACKUP"
+for dir in "${MSVCRT40_SEARCH_DIRS[@]}"; do
+        for name in "${MSVCRT40_CANDIDATE_NAMES[@]}"; do
+                MSVCRT40_PATH="$dir/$name"
+                if [[ -f "$MSVCRT40_PATH" ]]; then
+                        MSVCRT40_BACKUP="${MSVCRT40_PATH}.nettts-backup"
+                        if cp -f "$MSVCRT40_PATH" "$MSVCRT40_BACKUP" && rm -f "$MSVCRT40_PATH"; then
+                                MSVCRT40_BACKUPS["$MSVCRT40_PATH"]="$MSVCRT40_BACKUP"
+                                MSVCRT40_RESTORE_NEEDED["$MSVCRT40_PATH"]=1
+                                MSVCRT40_STAGED=1
+                                printf '[INFO] Backed up existing msvcrt40.dll from %s to %s to avoid InstallShield prompts.\n' "$MSVCRT40_PATH" "$MSVCRT40_BACKUP"
+                        else
+                                warn "Unable to stage msvcrt40.dll from $MSVCRT40_PATH; FlexTalk installer may prompt for confirmation"
+                                rm -f "$MSVCRT40_BACKUP"
+                        fi
                 fi
-        fi
+        done
 done
 if (( ! MSVCRT40_STAGED )); then
         printf '[INFO] No existing msvcrt40.dll copies detected to stage.\n'
