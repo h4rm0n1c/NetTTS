@@ -288,14 +288,14 @@ if "$WINE_BIN" wscript.exe "$SHORTCUT_VBS_WIN_PATH" "$SHORTCUT_WIN_PATH" "$TARGE
         printf '[INFO] Shortcut created at %s\n' "$SHORTCUT_PATH"
         SHORTCUT_CREATED=1
 else
-        warn 'Unable to create Start Menu shortcut automatically (wscript.exe missing?).'
+        warn 'Unable to create Start Menu shortcut automatically; wscript.exe may be missing.'
         warn "NetTTS is still installed at $NETTTS_DIR; create a shortcut manually if needed."
 fi
 
 if (( SHORTCUT_CREATED )); then
         SHORTCUT_STATUS="$SHORTCUT_PATH"
 else
-        SHORTCUT_STATUS='not created (see warnings above)'
+        SHORTCUT_STATUS='not created; see warnings above'
 fi
 
 BASE_DIR="$ROOT_DIR"
@@ -560,7 +560,7 @@ start_daemon() {
         nohup env "WINEPREFIX=$WINEPREFIX" "WINESERVER=$WINESERVER_CMD" "WINEDEBUG=$wine_debug" "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
         local pid=$!
         printf '%s\n' "$pid" >"$PID_FILE"
-        log "NetTTS daemon started (PID $pid)"
+        log "NetTTS daemon started; PID $pid"
 }
 
 stop_daemon() {
@@ -738,7 +738,7 @@ cat <<EOF
 - Helper scripts: $BIN_DIR/nettts-daemon.sh, $BIN_DIR/nettts-gui.sh, $BIN_DIR/flextalk-controlpanel.sh
 - Config file: $CONFIG_FILE
 - Device list: $DEVICES_FILE
-- Log file (create if needed): /var/log/nettts.log
+- Log file: /var/log/nettts.log - create it ahead of time if needed
 
 Launch example:
   WINEPREFIX="$WINEPREFIX" "$WINE_BIN" "$NETTTS_TARGET"
@@ -748,5 +748,5 @@ If you prefer wrun:
 EOF
 
 if (( PREFIX_CREATED )); then
-        echo "Note: A fresh 32-bit prefix was created (WINEARCH=win32)."
+        echo "Note: A fresh 32-bit prefix was created; WINEARCH=win32."
 fi
