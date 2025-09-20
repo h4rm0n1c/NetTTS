@@ -123,6 +123,7 @@ require_cmd unzip
 require_cmd curl
 require_cmd winepath
 require_cmd "$WINESERVER_BIN"
+require_cmd timeout
 
 export WINEPREFIX
 export WINESERVER=$WINESERVER_BIN
@@ -153,6 +154,9 @@ SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/../.." && pwd -P)
 FLEXTALK_RESPONSE_SOURCE="$REPO_ROOT/third_party/Dependencies/flextalk_setup.iss"
 [[ -f "$FLEXTALK_RESPONSE_SOURCE" ]] || error "Bundled FlexTalk response file not found at $FLEXTALK_RESPONSE_SOURCE"
+
+FLEXTALK_INSTALL_TIMEOUT=${FLEXTALK_INSTALL_TIMEOUT:-900}
+FLEXTALK_SHUTDOWN_TIMEOUT=${FLEXTALK_SHUTDOWN_TIMEOUT:-120}
 
 download_payload() {
         local source=$1
@@ -249,17 +253,68 @@ fi
 printf '[INFO] FlexTalk InstallShield log: %s\n' "$FLEXTALK_LOG"
 FLEXTALK_WIN_LOG=$(winepath -w "$FLEXTALK_LOG")
 FLEXTALK_WIN_ISS=$(winepath -w "$FLEXTALK_SETUP_ISS")
+FLEXTALK_F1_SWITCH=$(printf '/f1"%s"' "$FLEXTALK_WIN_ISS")
+FLEXTALK_F2_SWITCH=$(printf '/f2"%s"' "$FLEXTALK_WIN_LOG")
 
 printf '[INFO] Running FlexTalk installer silently...\n'
 FLEXTALK_WINEDEBUG='+typelib'
 if [[ -n ${WINEDEBUG:-} ]]; then
         FLEXTALK_WINEDEBUG="$WINEDEBUG,$FLEXTALK_WINEDEBUG"
 fi
+FLEXTALK_INSTALL_TIMED_OUT=0
 (
         cd "$FLEXTALK_SETUP_DIR"
-        env WINEDEBUG="$FLEXTALK_WINEDEBUG" "$WINE_BIN" "$FLEXTALK_SETUP_EXE" -s -SMS "-f1$FLEXTALK_WIN_ISS" "-f2$FLEXTALK_WIN_LOG"
+        if ! timeout "${FLEXTALK_INSTALL_TIMEOUT}s" env WINEDEBUG="$FLEXTALK_WINEDEBUG" \
+                "$WINE_BIN" "$FLEXTALK_SETUP_EXE" /s /SMS "$FLEXTALK_F1_SWITCH" "$FLEXTALK_F2_SWITCH"; then
+                status=$?
+                if (( status == 124 )); then
+                        FLEXTALK_INSTALL_TIMED_OUT=1
+                        warn "FlexTalk installer exceeded ${FLEXTALK_INSTALL_TIMEOUT}s; forcing shutdown"
+                        "$WINESERVER_BIN" -k || true
+                else
+                        warn "FlexTalk installer exited with status $status"
+                        if [[ -f "$FLEXTALK_LOG" ]]; then
+                                warn "Check $FLEXTALK_LOG for InstallShield diagnostics"
+                        fi
+                        error "FlexTalk installation failed"
+                fi
+        fi
 )
-"$WINESERVER_BIN" -w
+
+if ! timeout "${FLEXTALK_SHUTDOWN_TIMEOUT}s" "$WINESERVER_BIN" -w; then
+        status=$?
+        if (( status == 124 )); then
+                warn "FlexTalk processes still running after ${FLEXTALK_SHUTDOWN_TIMEOUT}s; issuing wineserver -k"
+                "$WINESERVER_BIN" -k || true
+                sleep 2
+        else
+                warn "wineserver -w exited with status $status"
+        fi
+fi
+
+if ! timeout "${FLEXTALK_SHUTDOWN_TIMEOUT}s" "$WINESERVER_BIN" -w; then
+        warn "wineserver did not terminate cleanly; continuing with caution"
+fi
+
+FLEXTALK_RESULT_CODE=""
+if [[ -f "$FLEXTALK_LOG" ]]; then
+        FLEXTALK_RESULT_CODE=$(awk -F= '/ResultCode[[:space:]]*=/{gsub(/\r$/, "", $2); print $2}' "$FLEXTALK_LOG" | tail -n 1)
+        FLEXTALK_RESULT_CODE=${FLEXTALK_RESULT_CODE//$'\r'/}
+fi
+
+if [[ -n "$FLEXTALK_RESULT_CODE" ]]; then
+        printf '[INFO] FlexTalk InstallShield ResultCode=%s\n' "$FLEXTALK_RESULT_CODE"
+        if [[ "$FLEXTALK_RESULT_CODE" != "0" ]]; then
+                warn "FlexTalk silent installer reported a failure. Review $FLEXTALK_LOG"
+                error "FlexTalk installation failed"
+        fi
+elif [[ -f "$FLEXTALK_LOG" ]]; then
+        warn "FlexTalk log $FLEXTALK_LOG did not report a ResultCode; verify the installation manually"
+fi
+
+if (( FLEXTALK_INSTALL_TIMED_OUT )); then
+        warn "FlexTalk installer required a forced shutdown; review $FLEXTALK_LOG if problems persist"
+fi
 
 FLEXTALK_INSTALL_UNIX=$(winepath -u "$FLEXTALK_INSTALL_WIN")
 if [[ ! -d "$FLEXTALK_INSTALL_UNIX" ]]; then
