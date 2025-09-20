@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+unset LD_PRELOAD LD_LIBRARY_PATH GTK3_MODULES GTK_MODULES GTK_PATH QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME || true
+
 DEFAULT_NETTTS_URL="https://github.com/h4rm0n1c/NetTTS/releases/download/v0.95c/nettts_gui.zip"
 DEFAULT_SAPI_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/spchapi.exe"
 DEFAULT_FLEXTALK_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/flextalk.zip"
@@ -292,6 +294,8 @@ fi
 cat >"$BIN_DIR/nettts-daemon.sh" <<'DAEMON'
 #!/usr/bin/env bash
 set -euo pipefail
+
+unset LD_PRELOAD LD_LIBRARY_PATH GTK3_MODULES GTK_MODULES GTK_PATH QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME || true
 
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BASE_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd -P)
@@ -615,6 +619,8 @@ cat >"$BIN_DIR/nettts-gui.sh" <<'GUI'
 #!/usr/bin/env bash
 set -euo pipefail
 
+unset LD_PRELOAD LD_LIBRARY_PATH GTK3_MODULES GTK_MODULES GTK_PATH QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME || true
+
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BASE_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd -P)
 DEFAULT_WINEPREFIX="$BASE_DIR/wineprefix"
@@ -648,6 +654,8 @@ chmod +x "$BIN_DIR/nettts-gui.sh"
 cat >"$BIN_DIR/flextalk-controlpanel.sh" <<'FLEXCTL'
 #!/usr/bin/env bash
 set -euo pipefail
+
+unset LD_PRELOAD LD_LIBRARY_PATH GTK3_MODULES GTK_MODULES GTK_PATH QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME || true
 
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BASE_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd -P)
