@@ -54,3 +54,7 @@ make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -
 
 
 Thanks to valve software as well for making some fucking incredible games.
+
+This application is a love letter to the Win32 application style of the 90s and 2000s that defined the early tech experiences of so many IT nerds like me.
+
+Developed with the assistance and insight of ChatGPT and then ChatGPT Codex once it grew beyond a single main.cpp.
