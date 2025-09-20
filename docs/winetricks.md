@@ -35,7 +35,7 @@ local mirrors.
 - `--flextalk-url <URL>` – Override the FlexTalk voice archive download (defaults to the `flextalk.zip` stored in this repo).
 
 The script forces `WINEARCH=win32` when the prefix is first created, installs the Windows XP compatibility layer, and pulls in
-both `vcrun6` and `mfc42` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local
+`vcrun6`, `mfc42`, and `riched20` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local
 paths you supplied), feeds them to Wine, and finally grabs the `v0.95c` NetTTS release zip (unless overridden) before copying
 the extracted executable into `C:\nettts` inside the prefix. FlexTalk ships as a 1997-era InstallShield 5 package, so the
 helper copies the recorded `third_party/Dependencies/flextalk_setup.iss` (captured from a `/r` run under Wine) beside `setup.exe`

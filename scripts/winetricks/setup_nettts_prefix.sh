@@ -169,8 +169,8 @@ mkdir -p "$WINEPREFIX"
 
 printf '\n[INFO] Preparing Wine prefix at %s\n' "$WINEPREFIX"
 
-printf '[INFO] Installing winxp, vcrun6, and mfc42 via winetricks...\n'
-winetricks -q winxp vcrun6 mfc42
+printf '[INFO] Installing winxp, vcrun6, mfc42, and riched20 via winetricks...\n'
+winetricks -q winxp vcrun6 mfc42 riched20
 
 SAPI_INSTALLER="$TMPDIR/sapi4_runtime.exe"
 download_payload "$SAPI_URL" "$SAPI_INSTALLER" "SAPI runtime"
