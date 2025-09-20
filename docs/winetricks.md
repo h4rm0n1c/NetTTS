@@ -48,7 +48,7 @@ After a successful run you can expect:
 
 - Wine prefix at `<root>/wineprefix/` (default: `~/nettts/wineprefix/`)
 - NetTTS copied to `<root>/wineprefix/drive_c/nettts/`
-- A Windows Start Menu shortcut at `<root>/wineprefix/drive_c/users/Public/Start Menu/Programs/NetTTS.lnk`
+- Attempts to create a Windows Start Menu shortcut at `<root>/wineprefix/drive_c/users/Public/Start Menu/Programs/NetTTS.lnk` (skipped with a warning if Windows Script Host is unavailable)
 - Helper scripts in `<root>/bin/`:
   - `nettts-daemon.sh` – start/stop the headless TCP server, send quick lines with `speak`, and refresh the captured device list
   - `nettts-gui.sh` – launch the GUI build inside the managed prefix

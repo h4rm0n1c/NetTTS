@@ -242,8 +242,21 @@ shortcut.Save
 VBS
 
 printf '[INFO] Creating Start Menu shortcut...\n'
-"$WINE_BIN" wscript.exe "$SHORTCUT_VBS" "$SHORTCUT_WIN_PATH" "$TARGET_WIN_PATH" "$WORKING_WIN_PATH" "$TARGET_WIN_PATH"
-"$WINESERVER_BIN" -w
+SHORTCUT_CREATED=0
+if "$WINE_BIN" wscript.exe "$SHORTCUT_VBS" "$SHORTCUT_WIN_PATH" "$TARGET_WIN_PATH" "$WORKING_WIN_PATH" "$TARGET_WIN_PATH"; then
+        "$WINESERVER_BIN" -w
+        printf '[INFO] Shortcut created at %s\n' "$SHORTCUT_PATH"
+        SHORTCUT_CREATED=1
+else
+        warn "Unable to create Start Menu shortcut automatically (wscript.exe missing?)."
+        warn "NetTTS is still installed at $NETTTS_DIR; create a shortcut manually if needed."
+fi
+
+if (( SHORTCUT_CREATED )); then
+        SHORTCUT_STATUS="$SHORTCUT_PATH"
+else
+        SHORTCUT_STATUS="not created (see warnings above)"
+fi
 
 BASE_DIR="$ROOT_DIR"
 BIN_DIR="$BASE_DIR/bin"
@@ -671,7 +684,7 @@ cat <<EOF
 - Base directory: $BASE_DIR
 - Wine prefix: $WINEPREFIX
 - NetTTS executable: $NETTTS_TARGET
-- Start Menu shortcut: $SHORTCUT_PATH
+- Start Menu shortcut: $SHORTCUT_STATUS
 - Helper scripts: $BIN_DIR/nettts-daemon.sh, $BIN_DIR/nettts-gui.sh, $BIN_DIR/flextalk-controlpanel.sh
 - Config file: $CONFIG_FILE
 - Device list: $DEVICES_FILE
