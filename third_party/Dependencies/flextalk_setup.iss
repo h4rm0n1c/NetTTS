@@ -11,7 +11,7 @@ Result=1
 [SdLicense-0]
 Result=1
 [SdAskDestPath-0]
-szDir=C:\Program Files (x86)\Watson21
+szDir=C:\Program Files\Watson21
 Result=1
 [Application]
 Name=Watson
