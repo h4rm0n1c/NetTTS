@@ -38,8 +38,8 @@ The script forces `WINEARCH=win32` when the prefix is first created, installs th
 both `vcrun6` and `mfc42` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local
 paths you supplied), feeds them to Wine, and finally grabs the `v0.95c` NetTTS release zip (unless overridden) before copying
 the extracted executable into `C:\nettts` inside the prefix. FlexTalk ships as a 1997-era InstallShield 5 package, so the
-helper drops a purpose-built `setup.iss` response file in place and launches `setup.exe -s -SMS` to drive a silent install to
-`C:\Program Files\Watson21`. The InstallShield log is stashed alongside the temporary payloads if you need to debug failures.
+helper copies the recorded `third_party/Dependencies/flextalk_setup.iss` (captured from a `/r` run under Wine) beside `setup.exe`
+and launches `setup.exe -s -SMS` to drive a silent install to the baked-in `C:\Program Files (x86)\Watson21` path. The InstallShield log is stashed alongside the temporary payloads if you need to debug failures.
 All artefacts live under the chosen root directory so they can be versioned or backed up as a single folder.
 
 ## Results

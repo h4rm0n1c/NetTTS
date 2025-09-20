@@ -131,6 +131,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+REPO_ROOT=$(cd -- "$SCRIPT_DIR/../.." && pwd -P)
+FLEXTALK_RESPONSE_SOURCE="$REPO_ROOT/third_party/Dependencies/flextalk_setup.iss"
+[[ -f "$FLEXTALK_RESPONSE_SOURCE" ]] || error "Bundled FlexTalk response file not found at $FLEXTALK_RESPONSE_SOURCE"
+
 download_payload() {
         local source=$1
         local destination=$2
@@ -180,76 +185,20 @@ unzip -q "$FLEXTALK_ARCHIVE" -d "$TMPDIR"
 FLEXTALK_SETUP=$(find "$TMPDIR" -maxdepth 3 -type f -iname 'setup.exe' | head -n 1)
 [[ -n "$FLEXTALK_SETUP" ]] || error "Could not locate FlexTalk setup.exe inside archive"
 
-FLEXTALK_ISS="$TMPDIR/flextalk-silent.iss"
-cat >"$FLEXTALK_ISS" <<'EOF'
-[InstallShield Silent]
-Version=v5.00.000
-File=Response File
-
-[File Transfer]
-OverwrittenReadOnly=NoToAll
-
-[DlgOrder]
-Dlg0=SdWelcome-0
-Count=5
-Dlg1=SdLicense-0
-Dlg2=SdAskDestPath-0
-Dlg3=SdStartCopy-0
-Dlg4=SdFinish-0
-
-[SdWelcome-0]
-Result=1
-
-[SdLicense-0]
-Result=1
-
-[SdAskDestPath-0]
-szDir=C:\Program Files\Watson21\
-Result=1
-
-[SdStartCopy-0]
-Result=1
-
-[SdFinish-0]
-Result=1
-bOpt1=0
-bOpt2=0
-EOF
-
-FLEXTALK_GUID="{B9BD3860-44DB-101B-90A8-00AA003E4B50}"
-cat >>"$FLEXTALK_ISS" <<EOF
-
-[$FLEXTALK_GUID-DlgOrder]
-Dlg0=$FLEXTALK_GUID-SdWelcome-0
-Count=5
-Dlg1=$FLEXTALK_GUID-SdLicense-0
-Dlg2=$FLEXTALK_GUID-SdAskDestPath-0
-Dlg3=$FLEXTALK_GUID-SdStartCopy-0
-Dlg4=$FLEXTALK_GUID-SdFinish-0
-
-[$FLEXTALK_GUID-SdWelcome-0]
-Result=1
-
-[$FLEXTALK_GUID-SdLicense-0]
-Result=1
-
-[$FLEXTALK_GUID-SdAskDestPath-0]
-szDir=C:\\Program Files\\Watson21\\
-Result=1
-
-[$FLEXTALK_GUID-SdStartCopy-0]
-Result=1
-
-[$FLEXTALK_GUID-SdFinish-0]
-Result=1
-bOpt1=0
-bOpt2=0
-EOF
-
 FLEXTALK_SETUP_DIR=$(cd "$(dirname "$FLEXTALK_SETUP")" && pwd -P)
 FLEXTALK_SETUP_EXE=$(basename "$FLEXTALK_SETUP")
 FLEXTALK_SETUP_ISS="$FLEXTALK_SETUP_DIR/SETUP.ISS"
-cp -f "$FLEXTALK_ISS" "$FLEXTALK_SETUP_ISS"
+cp -f "$FLEXTALK_RESPONSE_SOURCE" "$FLEXTALK_SETUP_ISS"
+printf '[INFO] Using FlexTalk response file from %s\n' "$FLEXTALK_RESPONSE_SOURCE"
+
+FLEXTALK_INSTALL_WIN=$(awk -F= '/^szDir[[:space:]]*=/{gsub(/\r$/, "", $2); print $2}' "$FLEXTALK_RESPONSE_SOURCE" | tail -n 1)
+if [[ -z "$FLEXTALK_INSTALL_WIN" ]]; then
+        FLEXTALK_INSTALL_WIN='C:\\Program Files\\Watson21'
+fi
+if [[ ${FLEXTALK_INSTALL_WIN: -1} != \\ ]]; then
+        FLEXTALK_INSTALL_WIN+="\"
+fi
+printf '[INFO] FlexTalk target directory: %s\n' "$FLEXTALK_INSTALL_WIN"
 
 FLEXTALK_LOG="$TMPDIR/flextalk-install.log"
 FLEXTALK_WIN_LOG=$(winepath -w "$FLEXTALK_LOG")
@@ -262,7 +211,6 @@ printf '[INFO] Running FlexTalk installer silently...\n'
 )
 "$WINESERVER_BIN" -w
 
-FLEXTALK_INSTALL_WIN='C:\\Program Files\\Watson21\\'
 FLEXTALK_INSTALL_UNIX=$(winepath -u "$FLEXTALK_INSTALL_WIN")
 if [[ ! -d "$FLEXTALK_INSTALL_UNIX" ]]; then
         warn "FlexTalk silent installer did not create $FLEXTALK_INSTALL_WIN"
