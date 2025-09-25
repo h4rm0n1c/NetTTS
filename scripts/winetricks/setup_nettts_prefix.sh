@@ -124,25 +124,9 @@ require_cmd "$WINESERVER_BIN"
 export WINEPREFIX
 export WINESERVER=$WINESERVER_BIN
 
-MSVCRT40_SEARCH_DIRS=(
-        "$WINEPREFIX/drive_c/windows/system32"
-        "$WINEPREFIX/drive_c/windows/system"
-)
-MSVCRT40_CANDIDATE_NAMES=(msvcrt40.dll MSVCRT40.DLL)
-declare -A MSVCRT40_BACKUPS=()
-declare -A MSVCRT40_RESTORE_NEEDED=()
-
 TMPDIR=$(mktemp -d)
 cleanup() {
         rm -rf "$TMPDIR"
-        local path
-        for path in "${!MSVCRT40_RESTORE_NEEDED[@]}"; do
-                local backup=${MSVCRT40_BACKUPS[$path]:-}
-                if [[ -n "$backup" && -f "$backup" && ! -f "$path" ]]; then
-                        mv -f "$backup" "$path"
-                        warn "Restored original msvcrt40.dll to $path after failure"
-                fi
-        done
 }
 handle_interrupt() {
         warn "Interrupt received; attempting to stop running Wine processes"
@@ -206,39 +190,13 @@ FLEXTALK_SETUP=$(find "$TMPDIR" -maxdepth 3 -type f -iname 'setup.exe' | head -n
 FLEXTALK_SETUP_DIR=$(cd "$(dirname "$FLEXTALK_SETUP")" && pwd -P)
 FLEXTALK_SETUP_EXE=$(basename "$FLEXTALK_SETUP")
 
-MSVCRT40_STAGED=0
-for dir in "${MSVCRT40_SEARCH_DIRS[@]}"; do
-        for name in "${MSVCRT40_CANDIDATE_NAMES[@]}"; do
-                MSVCRT40_PATH="$dir/$name"
-                if [[ -f "$MSVCRT40_PATH" ]]; then
-                        MSVCRT40_BACKUP="${MSVCRT40_PATH}.nettts-backup"
-                        if cp -f "$MSVCRT40_PATH" "$MSVCRT40_BACKUP" && rm -f "$MSVCRT40_PATH"; then
-                                MSVCRT40_BACKUPS["$MSVCRT40_PATH"]="$MSVCRT40_BACKUP"
-                                MSVCRT40_RESTORE_NEEDED["$MSVCRT40_PATH"]=1
-                                MSVCRT40_STAGED=1
-                                printf '[INFO] Backed up existing msvcrt40.dll from %s to %s to avoid InstallShield prompts.\n' "$MSVCRT40_PATH" "$MSVCRT40_BACKUP"
-                        else
-                                warn "Unable to stage msvcrt40.dll from $MSVCRT40_PATH; FlexTalk installer may prompt for confirmation"
-                                rm -f "$MSVCRT40_BACKUP"
-                        fi
-                fi
-        done
-done
-if (( ! MSVCRT40_STAGED )); then
-        printf '[INFO] No existing msvcrt40.dll copies detected to stage.\n'
-fi
-
 FLEXTALK_INSTALL_WIN='C:\\Program Files\\Watson21'
 printf '[INFO] FlexTalk target directory (default): %s\n' "$FLEXTALK_INSTALL_WIN"
 
 printf '[INFO] Launching FlexTalk installer with GUI...\n'
 printf '[INFO] Complete the FlexTalk setup manually; this script will continue afterwards.\n'
-FLEXTALK_WINEDEBUG='+typelib'
-if [[ -n ${WINEDEBUG:-} ]]; then
-        FLEXTALK_WINEDEBUG="$WINEDEBUG,$FLEXTALK_WINEDEBUG"
-fi
 pushd "$FLEXTALK_SETUP_DIR" >/dev/null
-if ! env WINEDEBUG="$FLEXTALK_WINEDEBUG" "$WINE_BIN" "$FLEXTALK_SETUP_EXE"; then
+if ! "$WINE_BIN" "$FLEXTALK_SETUP_EXE"; then
         status=$?
         warn "FlexTalk installer exited with status $status"
         warn "Resolve the installer issue and rerun the script."
@@ -256,17 +214,6 @@ if [[ -d "$FLEXTALK_INSTALL_UNIX" ]]; then
 else
         warn "FlexTalk not detected at $FLEXTALK_INSTALL_WIN; confirm the GUI install completed successfully."
 fi
-
-for MSVCRT40_PATH in "${!MSVCRT40_BACKUPS[@]}"; do
-        MSVCRT40_BACKUP=${MSVCRT40_BACKUPS[$MSVCRT40_PATH]}
-        if [[ -f "$MSVCRT40_PATH" ]]; then
-                printf '[INFO] FlexTalk supplied a fresh msvcrt40.dll at %s; original preserved at %s\n' "$MSVCRT40_PATH" "$MSVCRT40_BACKUP"
-        else
-                mv -f "$MSVCRT40_BACKUP" "$MSVCRT40_PATH"
-                warn "FlexTalk installer did not replace msvcrt40.dll at $MSVCRT40_PATH; restored original copy"
-        fi
-        unset MSVCRT40_RESTORE_NEEDED["$MSVCRT40_PATH"]
-done
 
 NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
 mkdir -p "$NETTTS_DIR"
