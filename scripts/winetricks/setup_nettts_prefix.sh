@@ -148,7 +148,14 @@ cleanup() {
                 fi
         done
 }
+handle_interrupt() {
+        warn "Interrupt received; attempting to stop running Wine processes"
+        "$WINESERVER_BIN" -k >/dev/null 2>&1 || true
+        exit 130
+}
+
 trap cleanup EXIT
+trap handle_interrupt INT TERM
 
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/../.." && pwd -P)
@@ -262,24 +269,23 @@ if [[ -n ${WINEDEBUG:-} ]]; then
         FLEXTALK_WINEDEBUG="$WINEDEBUG,$FLEXTALK_WINEDEBUG"
 fi
 FLEXTALK_INSTALL_TIMED_OUT=0
-(
-        cd "$FLEXTALK_SETUP_DIR"
-        if ! timeout "${FLEXTALK_INSTALL_TIMEOUT}s" env WINEDEBUG="$FLEXTALK_WINEDEBUG" \
-                "$WINE_BIN" "$FLEXTALK_SETUP_EXE" /s /SMS "$FLEXTALK_F1_SWITCH" "$FLEXTALK_F2_SWITCH"; then
-                status=$?
-                if (( status == 124 )); then
-                        FLEXTALK_INSTALL_TIMED_OUT=1
-                        warn "FlexTalk installer exceeded ${FLEXTALK_INSTALL_TIMEOUT}s; forcing shutdown"
-                        "$WINESERVER_BIN" -k || true
-                else
-                        warn "FlexTalk installer exited with status $status"
-                        if [[ -f "$FLEXTALK_LOG" ]]; then
-                                warn "Check $FLEXTALK_LOG for InstallShield diagnostics"
-                        fi
-                        error "FlexTalk installation failed"
+pushd "$FLEXTALK_SETUP_DIR" >/dev/null
+if ! timeout "${FLEXTALK_INSTALL_TIMEOUT}s" env WINEDEBUG="$FLEXTALK_WINEDEBUG" \
+        "$WINE_BIN" "$FLEXTALK_SETUP_EXE" -s -SMS "$FLEXTALK_F1_SWITCH" "$FLEXTALK_F2_SWITCH"; then
+        status=$?
+        if (( status == 124 )); then
+                FLEXTALK_INSTALL_TIMED_OUT=1
+                warn "FlexTalk installer exceeded ${FLEXTALK_INSTALL_TIMEOUT}s; forcing shutdown"
+                "$WINESERVER_BIN" -k || true
+        else
+                warn "FlexTalk installer exited with status $status"
+                if [[ -f "$FLEXTALK_LOG" ]]; then
+                        warn "Check $FLEXTALK_LOG for InstallShield diagnostics"
                 fi
+                error "FlexTalk installation failed"
         fi
-)
+fi
+popd >/dev/null
 
 if ! timeout "${FLEXTALK_SHUTDOWN_TIMEOUT}s" "$WINESERVER_BIN" -w; then
         status=$?
