@@ -14,7 +14,7 @@ NetTTS keeps vintage-friendly speech synthesis fun instead of fiddly. It wraps F
 
 - **Retro hardware ready** – Ship one lightweight executable that behaves on classic Windows installs without a DLL scavenger hunt.
 - **Pure cross-compiled build** – Build everything from Linux with MinGW-w64; no need to chase abandoned Microsoft downloads.
-- **Bundled speech headers** – A known-good `speech.h` is vendored under `third_party/headers/` so the toolchain never breaks.
+- **Bundled speech headers** – A known-good `speech.h` is vendored under `third_party/include/` so the toolchain never breaks.
 - **Wine-tested workflow** – Mirrors the maintainer's Devuan + Wine environment, making it painless to automate or integrate.
 
 ## Run the prebuilt binary
@@ -25,6 +25,22 @@ NetTTS keeps vintage-friendly speech synthesis fun instead of fiddly. It wraps F
 4. Launch `nettts_gui.exe` on Windows or via Wine — for example `wrun ./build/nettts_gui.exe` in the maintainer's setup.
 
 Want to coax a little melody out of it? The [NetTTS sing-along gist](https://gist.github.com/h4rm0n1c/2ddaa14c03be25c2072347a1b27e25da) has a ready-made script to rick roll.
+
+## Wine prefix automation
+
+Need a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinstalled? Run the helper script:
+
+```bash
+./scripts/winetricks/setup_nettts_prefix.sh
+```
+
+By default everything lands under `~/nettts/`: the Wine prefix lives in `~/nettts/wineprefix/`, helper scripts go into `~/nettts/bin/`, configuration in `~/nettts/etc/`, and `/var/log/nettts.log` is used for daemon logging. Override the base location with `--root-dir <path>` (or point at an existing prefix with `--wineprefix`). The script leans on winetricks to apply `winxp`, `vcrun6`, `mfc42`, and `riched20`, downloads the SAPI runtime, FlexTalk voice archive, and the `v0.95c` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and attempts to drop a Start Menu shortcut under `C\Users\Public\Start Menu\Programs` (skipping with a warning if Windows Script Host is unavailable) while seeding utility launchers. FlexTalk's 1997 InstallShield 5 wizard still runs interactively: the helper launches `setup.exe`, waits for you to finish the GUI install, and then moves on to the remaining setup steps.
+
+- `~/nettts/bin/nettts-daemon.sh` – start/stop the headless TCP server, push test utterances (`speak`), and refresh device lists.
+- `~/nettts/bin/nettts-gui.sh` – launch the GUI build inside the managed prefix.
+- `~/nettts/bin/flextalk-controlpanel.sh` – pop open the FlexTalk control panel (`C\windows\system32\flextalk.cpl`).
+
+See [docs/winetricks.md](docs/winetricks.md) for prerequisites (Wine 8+, winetricks, curl, unzip, and optional netcat), detailed options, and daemon tips.
 
 ## Quick start build (Linux host)
 
@@ -40,7 +56,7 @@ The resulting binary lands in `./build/` and can be launched on Windows or via W
 
 ## Customize the include path
 
-By default the build pulls in the bundled header at `third_party/headers/speech.h`. If you have a different SDK you want to test against, point `INC_DIR` wherever you need:
+By default the build pulls in the bundled header at `third_party/include/speech.h`. If you have a different SDK you want to test against, point `INC_DIR` wherever you need:
 
 ```bash
 make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -j"$(nproc)"
