@@ -12,7 +12,6 @@ Install these host tools before running the helper:
 - `winetricks`
 - `curl`
 - `unzip`
-- `timeout` (from GNU coreutils)
 - `nc`/`netcat` (optional, but required for the `speak` helper in `nettts-daemon.sh`)
 
 By default the helper pulls the SAPI 4.0 runtime and FlexTalk voice archive directly from the canonical URLs in this repository,
@@ -35,7 +34,7 @@ local mirrors.
 - `--sapi-url <URL>` – Override the SAPI runtime download (defaults to the `spchapi.exe` stored in this repo).
 - `--flextalk-url <URL>` – Override the FlexTalk voice archive download (defaults to the `flextalk.zip` stored in this repo).
 
-The script forces `WINEARCH=win32` when the prefix is first created, installs the Windows XP compatibility layer, and pulls in `vcrun6`, `mfc42`, and `riched20` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local paths you supplied), feeds them to Wine, and finally grabs the `v0.95c` NetTTS release zip (unless overridden) before copying the extracted executable into `C:\nettts` inside the prefix. FlexTalk ships as a 1997-era InstallShield 5 package, so the helper copies the recorded `third_party/Dependencies/flextalk_setup.iss` (captured from a `/r` run under Wine) beside `setup.exe`, temporarily moves any existing `msvcrt40.dll` copies from `C:\windows\system32\` or `C:\windows\system\` out of the way to avoid the overwrite confirmation prompt, and launches `setup.exe /s /SMS` to drive a silent install to the baked-in `C:\Program Files\Watson21` path. The original DLL is preserved as `msvcrt40.dll.nettts-backup` (and restored automatically on failure). The InstallShield log is stashed beside the invoking directory, the ResultCode is parsed for success, and any lingering InstallShield processes are force-closed after a configurable timeout (`FLEXTALK_INSTALL_TIMEOUT` for the setup run, `FLEXTALK_SHUTDOWN_TIMEOUT` for cleanup) so the helper never hangs indefinitely.
+The script forces `WINEARCH=win32` when the prefix is first created, installs the Windows XP compatibility layer, and pulls in `vcrun6`, `mfc42`, and `riched20` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local paths you supplied), feeds them to Wine, and finally grabs the `v0.95c` NetTTS release zip (unless overridden) before copying the extracted executable into `C:\nettts` inside the prefix. FlexTalk ships as a 1997-era InstallShield 5 package, so the helper temporarily moves any existing `msvcrt40.dll` copies from `C:\windows\system32\` or `C:\windows\system\` out of the way to avoid overwrite prompts, launches `setup.exe` with `WINEDEBUG` augmented to include `+typelib`, and waits for you to complete the GUI-driven install. If FlexTalk does not replace the DLL, the original copy is restored automatically.
 
 All artefacts live under the chosen root directory so they can be versioned or backed up as a single folder.
 

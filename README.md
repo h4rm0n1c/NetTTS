@@ -34,13 +34,13 @@ Need a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinst
 ./scripts/winetricks/setup_nettts_prefix.sh
 ```
 
-By default everything lands under `~/nettts/`: the Wine prefix lives in `~/nettts/wineprefix/`, helper scripts go into `~/nettts/bin/`, configuration in `~/nettts/etc/`, and `/var/log/nettts.log` is used for daemon logging. Override the base location with `--root-dir <path>` (or point at an existing prefix with `--wineprefix`). The script leans on winetricks to apply `winxp`, `vcrun6`, `mfc42`, and `riched20`, downloads the SAPI runtime, FlexTalk voice archive, and the `v0.95c` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and attempts to drop a Start Menu shortcut under `C\Users\Public\Start Menu\Programs` (skipping with a warning if Windows Script Host is unavailable) while seeding utility launchers. FlexTalk's InstallShield 5.0-era wizard reuses the recorded `third_party/Dependencies/flextalk_setup.iss` (captured via `setup.exe /r` under Wine 8.0) so it lands quietly in the response file's `C:\Program Files\Watson21` target, the helper temporarily backs up any existing `msvcrt40.dll` copies from `C:\windows\system32\` or `C:\windows\system\` to avoid the overwrite confirmation that would otherwise break the silent run, and the InstallShield log is parsed so lingering processes can be force-closed after a timeout instead of leaving the script hung:
+By default everything lands under `~/nettts/`: the Wine prefix lives in `~/nettts/wineprefix/`, helper scripts go into `~/nettts/bin/`, configuration in `~/nettts/etc/`, and `/var/log/nettts.log` is used for daemon logging. Override the base location with `--root-dir <path>` (or point at an existing prefix with `--wineprefix`). The script leans on winetricks to apply `winxp`, `vcrun6`, `mfc42`, and `riched20`, downloads the SAPI runtime, FlexTalk voice archive, and the `v0.95c` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and attempts to drop a Start Menu shortcut under `C\Users\Public\Start Menu\Programs` (skipping with a warning if Windows Script Host is unavailable) while seeding utility launchers. FlexTalk's 1997 InstallShield 5 wizard still runs interactively: the helper stages any existing `msvcrt40.dll` copies out of the way, launches `setup.exe` with `WINEDEBUG` augmented to include `+typelib`, and waits for you to finish the GUI install before moving on. If FlexTalk skips replacing the DLL, the original copy is restored automatically.
 
 - `~/nettts/bin/nettts-daemon.sh` – start/stop the headless TCP server, push test utterances (`speak`), and refresh device lists.
 - `~/nettts/bin/nettts-gui.sh` – launch the GUI build inside the managed prefix.
 - `~/nettts/bin/flextalk-controlpanel.sh` – pop open the FlexTalk control panel (`C\windows\system32\flextalk.cpl`).
 
-See [docs/winetricks.md](docs/winetricks.md) for prerequisites (Wine 8+, winetricks, curl, unzip, timeout, and optional netcat), detailed options, and daemon tips.
+See [docs/winetricks.md](docs/winetricks.md) for prerequisites (Wine 8+, winetricks, curl, unzip, and optional netcat), detailed options, and daemon tips.
 
 ## Quick start build (Linux host)
 
@@ -66,7 +66,7 @@ make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -
 
 - **Clean builds:** `make -f Makefile.mingw clean`
 - **Artifacts:** Everything lands in `./build/`
-- **Optional extras:** If the `Dependencies/` folder is present, it may carry installers for the SAPI 4 SDK, runtime, or FlexTalk voice. They're handy for setting up Windows, but thanks to the in-repo header the build stays fully reproducible. The bundled `third_party/Dependencies/flextalk_setup.iss` was recorded from the 1997 InstallShield wizard with `/r` so scripted installs can stay faithful to the original dialogs.
+- **Optional extras:** If the `Dependencies/` folder is present, it may carry installers for the SAPI 4 SDK, runtime, or FlexTalk voice. They're handy for setting up Windows, but thanks to the in-repo header the build stays fully reproducible.
 
 
 Thanks to valve software as well for making some fucking incredible games.
