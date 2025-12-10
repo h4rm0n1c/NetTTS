@@ -1,4 +1,4 @@
-<span style="inline"><img src="app.ico" alt="NetTTS icon" width="32" /> <h1> NetTTS </h1></span>
+# NetTTS
 
 <p align="center">
   <img src="app.ico" alt="NetTTS icon" width="96" />
