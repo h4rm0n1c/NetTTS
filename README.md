@@ -1,4 +1,4 @@
-# NetTTS
+<img src="app.ico" alt="NetTTS icon" width="32" /># NetTTS
 
 <p align="center">
   <img src="app.ico" alt="NetTTS icon" width="96" />
