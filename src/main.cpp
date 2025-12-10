@@ -34,6 +34,8 @@ static bool         g_runserver     = false; // --startserver
 static bool         g_headless      = false; // --headless
 static std::wstring g_host          = L"127.0.0.1";
 static int          g_port          = 5555;
+static int          g_status_port   = -1;    // default: port+1
+static bool         g_status_port_explicit = false;
 static int          g_dev_index     = -1;
 static int          g_posn_poll_ms  = 0;
 static bool         g_selftest      = false;
@@ -355,9 +357,18 @@ case WM_APP_SERVER_REQ: {
     if (r){
         bool ok = false;
         if (r->start){
-            ok = server_start(std::wstring(r->host), r->port, g_hwnd);
+            g_host = std::wstring(r->host);
+            g_port = r->port;
+            if (!g_status_port_explicit){
+                g_status_port = g_port + 1;
+            }
+            ok = server_start(g_host, g_port, g_hwnd);
+            if (ok){
+                ok = status_server_start(g_host, g_status_port);
+            }
         } else {
             server_stop();
+            status_server_stop();
             ok = true;
         }
         if (HWND dlg = gui_get_main_hwnd()){
@@ -398,6 +409,7 @@ case WM_APP_TTS_TEXT_START:
     g_inflight_local++;
     // one-liner: tell the GUI it's busy now
     gui_notify_tts_state(true);
+    status_server_broadcast("START\n", 6);
     return 0;
 
 
@@ -414,6 +426,7 @@ case WM_APP_TTS_AUDIO_DONE: {
         gui_notify_tts_state(false);
         if (g_headless) dprintf("[tts] audio done");
     }
+    status_server_broadcast("STOP\n", 5);
     return 0;
 }
 
@@ -473,11 +486,16 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
         else if (a==L"--voxclean") { g_vox_enabled = true; g_vox_clean = true; }
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
         else if (a==L"--port" && i+1<argc) g_port = _wtoi(argv[++i]);
+        else if (a==L"--status-port" && i+1<argc) { g_status_port = _wtoi(argv[++i]); g_status_port_explicit = true; }
         else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
         else if (a==L"--posn-ms" && i+1<argc) g_posn_poll_ms = _wtoi(argv[++i]);
         else if (a==L"--selftest") g_selftest=true;
     }
     LocalFree(argv);
+
+    if (g_status_port < 0){
+        g_status_port = g_port + 1;
+    }
 }
 
 // ------------------------------------------------------------------
@@ -548,6 +566,12 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
     bool started = false;
     if (g_runserver){
         started = server_start(g_host, g_port, g_hwnd);
+        if (started){
+            started = status_server_start(g_host, g_status_port);
+            if (!started){
+                server_stop();
+            }
+        }
     }
     if (show_gui && hDlg){
         PostMessageW(hDlg, WM_APP_SERVER_STATE, started ? 1 : 0, 0);
@@ -569,6 +593,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         DispatchMessageW(&msg);
     }
 
+    status_server_stop();
+    server_stop();
     tts_shutdown(g_eng);
     CoUninitialize();
     return 0;

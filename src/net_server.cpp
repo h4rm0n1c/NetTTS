@@ -8,6 +8,7 @@
 #include "util.hpp"
 #include <string>
 #include <atomic>
+#include <vector>
 
 #ifndef WM_APP
 #  define WM_APP 0x8000
@@ -22,6 +23,15 @@ static SOCKET g_listen = INVALID_SOCKET;
 static HWND   g_hwnd   = nullptr;
 static std::wstring g_host = L"127.0.0.1";
 static int          g_port = 5555;
+
+static HANDLE g_status_thread = nullptr;
+static volatile LONG g_status_stop = 0;
+static SOCKET g_status_listen = INVALID_SOCKET;
+static std::wstring g_status_host = L"127.0.0.1";
+static int          g_status_port = 5556;
+static CRITICAL_SECTION g_status_cs;
+static bool g_status_cs_init = false;
+static std::vector<SOCKET> g_status_clients;
 
 using inet_pton_func = INT (WSAAPI*)(INT, const char*, void*);
 
@@ -86,10 +96,15 @@ static bool parse_ipv4(const std::string& host, in_addr* out)
 
 // ---- server state ----
 static std::atomic<bool> g_server_running{false};
+static std::atomic<bool> g_status_running{false};
 
 // expose status to the rest of the app
 bool server_is_running(){
     return g_server_running.load(std::memory_order_acquire);
+}
+
+bool status_server_is_running(){
+    return g_status_running.load(std::memory_order_acquire);
 }
 
 static DWORD WINAPI server_thread(LPVOID){
@@ -170,6 +185,107 @@ static DWORD WINAPI server_thread(LPVOID){
     return 0;
 }
 
+static void status_remove_client_locked(std::vector<SOCKET>& clients, size_t idx){
+    if (idx >= clients.size()) return;
+    closesocket(clients[idx]);
+    clients.erase(clients.begin() + idx);
+}
+
+static DWORD WINAPI status_server_thread(LPVOID){
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
+        dprintf("[status] WSAStartup failed");
+        return 0;
+    }
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port   = htons( (u_short)g_status_port );
+
+    std::string hostA = w_to_u8(g_status_host);
+    if (!parse_ipv4(hostA, &addr.sin_addr)) {
+        dprintf("[status] failed to parse host '%s', using 127.0.0.1", hostA.c_str());
+        if (!parse_ipv4("127.0.0.1", &addr.sin_addr)) {
+            addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        }
+    }
+
+    g_status_listen = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if(g_status_listen==INVALID_SOCKET){
+        dprintf("[status] socket() failed");
+        WSACleanup();
+        return 0;
+    }
+
+    int opt=1;
+    setsockopt(g_status_listen, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
+
+    if(bind(g_status_listen,(sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
+        dprintf("[status] bind() failed");
+        closesocket(g_status_listen); g_status_listen=INVALID_SOCKET;
+        WSACleanup();
+        return 0;
+    }
+    if(listen(g_status_listen, 4)==SOCKET_ERROR){
+        dprintf("[status] listen() failed");
+        closesocket(g_status_listen); g_status_listen=INVALID_SOCKET;
+        WSACleanup();
+        return 0;
+    }
+    g_status_running.store(true, std::memory_order_release);
+    dprintf("[status] listening on %s:%d", hostA.c_str(), g_status_port);
+
+    while(!g_status_stop){
+        fd_set rf; FD_ZERO(&rf); FD_SET(g_status_listen, &rf);
+        {
+            if (g_status_cs_init) EnterCriticalSection(&g_status_cs);
+            for (SOCKET s : g_status_clients){
+                FD_SET(s, &rf);
+            }
+            if (g_status_cs_init) LeaveCriticalSection(&g_status_cs);
+        }
+        timeval tv{0, 200*1000};
+        int r = select(0, &rf, nullptr, nullptr, &tv);
+        if(r<=0){ continue; }
+
+        if(FD_ISSET(g_status_listen, &rf)){
+            sockaddr_in cli; int clen=sizeof(cli);
+            SOCKET s = accept(g_status_listen,(sockaddr*)&cli,&clen);
+            if(s!=INVALID_SOCKET){
+                if (g_status_cs_init) EnterCriticalSection(&g_status_cs);
+                g_status_clients.push_back(s);
+                if (g_status_cs_init) LeaveCriticalSection(&g_status_cs);
+                dprintf("[status] client connected");
+            }
+        }
+
+        if (g_status_cs_init) EnterCriticalSection(&g_status_cs);
+        for (size_t i = 0; i < g_status_clients.size(); ){
+            SOCKET s = g_status_clients[i];
+            if (FD_ISSET(s, &rf)){
+                char tmp[1];
+                int n = recv(s,tmp,sizeof(tmp),0);
+                if(n<=0){
+                    dprintf("[status] client disconnected");
+                    status_remove_client_locked(g_status_clients, i);
+                    continue;
+                }
+            }
+            ++i;
+        }
+        if (g_status_cs_init) LeaveCriticalSection(&g_status_cs);
+    }
+
+    if(g_status_listen!=INVALID_SOCKET){ closesocket(g_status_listen); g_status_listen=INVALID_SOCKET; }
+    if (g_status_cs_init) EnterCriticalSection(&g_status_cs);
+    for (SOCKET s : g_status_clients){ closesocket(s); }
+    g_status_clients.clear();
+    if (g_status_cs_init) LeaveCriticalSection(&g_status_cs);
+    WSACleanup();
+    g_status_running.store(false, std::memory_order_release);
+    return 0;
+}
+
 bool server_start(const std::wstring& host, int port, HWND hwnd){
     if(g_hThread) return true;
     g_stop=0; g_hwnd=hwnd; g_host=host; g_port=port;
@@ -182,4 +298,35 @@ void server_stop(){
     if(g_listen!=INVALID_SOCKET){ shutdown(g_listen, SD_BOTH); }
     if(g_hThread){ WaitForSingleObject(g_hThread, 2000); CloseHandle(g_hThread); g_hThread=nullptr; }
     g_server_running.store(false, std::memory_order_release);
+}
+
+bool status_server_start(const std::wstring& host, int port){
+    if (g_status_thread) return true;
+    if (!g_status_cs_init){ InitializeCriticalSection(&g_status_cs); g_status_cs_init = true; }
+    g_status_stop = 0; g_status_host = host; g_status_port = port;
+    g_status_thread = CreateThread(nullptr,0,status_server_thread,nullptr,0,nullptr);
+    return g_status_thread!=nullptr;
+}
+
+void status_server_stop(){
+    g_status_stop = 1;
+    if(g_status_listen!=INVALID_SOCKET){ shutdown(g_status_listen, SD_BOTH); }
+    if(g_status_thread){ WaitForSingleObject(g_status_thread, 2000); CloseHandle(g_status_thread); g_status_thread=nullptr; }
+    g_status_running.store(false, std::memory_order_release);
+}
+
+void status_server_broadcast(const char* msg, size_t len){
+    if (!msg || len == 0) return;
+    if (g_status_cs_init) EnterCriticalSection(&g_status_cs);
+    for (size_t i = 0; i < g_status_clients.size(); ){
+        SOCKET s = g_status_clients[i];
+        int sent = send(s, msg, (int)len, 0);
+        if (sent <= 0){
+            status_remove_client_locked(g_status_clients, i);
+            dprintf("[status] client disconnected");
+            continue;
+        }
+        ++i;
+    }
+    if (g_status_cs_init) LeaveCriticalSection(&g_status_cs);
 }
