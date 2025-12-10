@@ -68,6 +68,29 @@ make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -
 - **Artifacts:** Everything lands in `./build/`
 - **Optional extras:** If the `Dependencies/` folder is present, it may carry installers for the SAPI 4 SDK, runtime, or FlexTalk voice. They're handy for setting up Windows, but thanks to the in-repo header the build stays fully reproducible.
 
+## Live status sidechannel
+
+Run `nettts_gui.exe --runserver` to expose two TCP listeners:
+
+- The existing command socket on `--port` (default `5555`).
+- A lightweight status socket on `--status-port` (defaults to `--port+1`, so `5556`).
+
+The status socket accepts long-lived clients and pushes a single line per high-level event:
+
+- `START\n` is sent when speech begins (on `WM_APP_TTS_TEXT_START`).
+- `STOP\n` is sent when playback drains (on `WM_APP_TTS_AUDIO_DONE`).
+
+It's designed for background-music ducking or capture automation. For example, the OBS meme daemon can subscribe on `127.0.0.1:5556`, mute/attenuate BGM on `START`, and restore it on `STOP`. A minimal consumer looks like:
+
+```bash
+nc 127.0.0.1 5556 | while read -r line; do
+  case "$line" in
+    START) echo "duck bgm" ;;   # replace with your OBS control shim
+    STOP)  echo "restore" ;;
+  esac
+done
+```
+
 
 Thanks to valve software as well for making some fucking incredible games.
 
