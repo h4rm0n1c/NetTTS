@@ -1,6 +1,5 @@
 # Build with MinGW-w64 i686
 # Usage:
-#   make -f Makefile.mingw bootstrap-sapi4       # (once) fetch speech.h locally
 #   make -f Makefile.mingw -j"$(nproc)"          # build -> ./build/nettts_gui.exe
 
 CXX := i686-w64-mingw32-g++
@@ -27,7 +26,7 @@ OUT  := $(BUILD_DIR)/$(TARGET)
 
 RCFLAGS := -I .
 
-.PHONY: all clean bootstrap-sapi4 print-inc run
+.PHONY: all clean print-inc run
 all: $(OUT)
 
 # Ensure build dir exists
@@ -47,10 +46,6 @@ $(OUT): $(OBJS) $(RES)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 	@echo
 	@echo "Built: $(OUT)"
-
-# One-time local header fetch (git-ignored)
-bootstrap-sapi4:
-	./scripts/fetch_sapi4_headers.sh
 
 print-inc:
 	@echo $(INC_DIR)
