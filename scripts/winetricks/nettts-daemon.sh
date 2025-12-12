@@ -221,17 +221,11 @@ ensure_alsa_fallback() {
         mkdir -p "$CONFIG_DIR"
         local fallback_conf="$CONFIG_DIR/alsa-fallback.conf"
 
+        # Keep the fallback minimal and self-contained so we do not inherit
+        # host-side alsa.conf quirks (which were showing up as parse errors in
+        # daemon logs). The goal is simply to offer a basic hw:0 default path
+        # when the PipeWire shim is unavailable.
         cat >"$fallback_conf" <<'EOF'
-@hooks [
-        {
-                func load
-                files [
-                        "/usr/share/alsa/alsa.conf"
-                ]
-                errors false
-        }
-]
-
 pcm.sysdefault {
         type hw
         card 0
@@ -312,7 +306,7 @@ start_daemon() {
                 local desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
                 wine_start=(explorer "/desktop=${desktop_name},${desktop_size}" "${args[@]}")
         else
-                wine_start=(start /min /unix "${args[@]}")
+                wine_start=(start /min "${args[@]}")
         fi
 
         log "Starting NetTTS daemon..."
@@ -329,8 +323,8 @@ start_daemon() {
                 "WINEDEBUG=$(wine_debug_value)"
                 "HOME=$HOME_DIR"
                 "XDG_CACHE_HOME=$CACHE_DIR"
+                "XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME_DIR/.config}"
                 "FC_CACHEDIR=$FC_CACHE_DIR"
-                "PATH=$PATH"
         )
 
         if [[ -n ${ALSA_CONFIG_PATH:-} ]]; then
@@ -350,7 +344,7 @@ start_daemon() {
 
         (
                 umask 0022
-                exec setsid env -i "${wine_env[@]}" "$WINE_CMD" "${wine_start[@]}" \
+                exec setsid env "${wine_env[@]}" "$WINE_CMD" "${wine_start[@]}" \
                         >>"$LOG_FILE" 2>&1 </dev/null
         ) &
 
