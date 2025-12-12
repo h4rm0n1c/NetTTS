@@ -1,6 +1,7 @@
 #include "help.hpp"
 #include <windows.h>
 #include <mmsystem.h>
+#include <cwchar>
 #include <string>
 
 namespace {
