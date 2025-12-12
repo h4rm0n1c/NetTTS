@@ -8,3 +8,4 @@ void print_help();
 void show_help_and_exit(bool error=false);
 bool show_help_dialog(HINSTANCE hInst, HWND parent);
 std::wstring get_help_text_w();
+std::wstring get_device_mapping_text();

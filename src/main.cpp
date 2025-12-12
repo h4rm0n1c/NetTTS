@@ -465,17 +465,9 @@ static void parse_cmdline(){
 else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
     if (!g_headless) AllocConsole(); // or your own console attach
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    auto put = [&](const std::wstring& s){
-        DWORD w; WriteConsoleW(h, s.c_str(), (DWORD)s.size(), &w, nullptr);
-        WriteConsoleW(h, L"\r\n", 2, &w, nullptr);
-    };
-    put(L"Device index mapping (use with --devnum):");
-    put(L"  -1 : (Default output device)");
-    UINT ndev = waveOutGetNumDevs();
-    for (UINT di=0; di<ndev; di++){
-        WAVEOUTCAPSW caps{}; waveOutGetDevCapsW(di, &caps, sizeof(caps));
-        wchar_t line[512]; _snwprintf(line, 511, L"  %u : %ls", di, caps.szPname);
-        put(line);
+    auto map = get_device_mapping_text();
+    if (!map.empty()){
+        DWORD w; WriteConsoleW(h, map.c_str(), (DWORD)map.size(), &w, nullptr);
     }
     ExitProcess(0);
 }
@@ -508,6 +500,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
     }
 
     parse_cmdline();
+
+    // Enumerate output devices once up front and reuse the cached mapping text.
+    // Helps avoid repeated WinMM queries when showing help or responding to flags.
+    (void)get_device_mapping_text();
 
     if (g_headless || g_cli_help) log_attach_console();
     log_set_verbose(g_headless);
