@@ -170,11 +170,30 @@ check_executable() {
 }
 
 ensure_alsa_fallback() {
-        local pipewire_alsa_so="/usr/lib/i386-linux-gnu/alsa-lib/libasound_module_pcm_pipewire.so"
+        local pipewire_paths=()
+        local host_multiarch
+
+        host_multiarch=$(gcc -print-multiarch 2>/dev/null || true)
+        if [[ -n $host_multiarch ]]; then
+                pipewire_paths+=("/usr/lib/$host_multiarch/alsa-lib/libasound_module_pcm_pipewire.so")
+        fi
+
+        pipewire_paths+=(
+                "/usr/lib/alsa-lib/libasound_module_pcm_pipewire.so"
+                "/usr/lib/i386-linux-gnu/alsa-lib/libasound_module_pcm_pipewire.so"
+        )
+
+        local shim_found=false
+        for candidate in "${pipewire_paths[@]}"; do
+                if [[ -f "$candidate" ]]; then
+                        shim_found=true
+                        break
+                fi
+        done
 
         # Respect any user-provided ALSA overrides and only intervene when the
         # PipeWire ALSA shim is missing (common in minimal service setups).
-        if [[ -n ${ALSA_CONFIG_PATH:-} || -f "$pipewire_alsa_so" ]]; then
+        if [[ -n ${ALSA_CONFIG_PATH:-} || $shim_found == true ]]; then
                 return
         fi
 
@@ -182,6 +201,26 @@ ensure_alsa_fallback() {
         local fallback_conf="$CONFIG_DIR/alsa-fallback.conf"
 
         cat >"$fallback_conf" <<'EOF'
+@hooks [
+        {
+                func load
+                files [
+                        "/usr/share/alsa/alsa.conf"
+                ]
+                errors false
+        }
+]
+
+pcm.sysdefault {
+        type hw
+        card 0
+}
+
+ctl.sysdefault {
+        type hw
+        card 0
+}
+
 pcm.!default {
         type plug
         slave.pcm "sysdefault"
