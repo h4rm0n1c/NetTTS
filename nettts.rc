@@ -4,7 +4,7 @@
 #endif
 
 #define APP_PRODUCT_NAME     "NetTTS"
-#define APP_VERSION_TAG      "0.95d (Shareware Deluxe Edition)"
+#define APP_VERSION_TAG      "0.95e (Freeware Deluxe Edition)"
 #define APP_VERSION_DISPLAY  "Version " APP_VERSION_TAG
 #define APP_AUTHOR_NAME      "h4rm0n1c"
 #define APP_COPYRIGHT_TEXT   "\xa9 " APP_AUTHOR_NAME
@@ -136,10 +136,10 @@ BEGIN
 END
 
 // ---- Version Information (Details tab metadata) ------------------
-// Encode the retro "0.95c" tag as 0,0,95,3 so the numeric file version stays valid.
+// Encode the retro "0.95e" tag as 0,0,95,5 so the numeric file version stays valid.
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,0,95,3
- PRODUCTVERSION 0,0,95,3
+ FILEVERSION 0,0,95,5
+ PRODUCTVERSION 0,0,95,5
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
@@ -163,7 +163,7 @@ BEGIN
             VALUE "OriginalFilename", "nettts_gui.exe\0"
             VALUE "ProductName", APP_PRODUCT_NAME "\0"
             VALUE "ProductVersion", APP_VERSION_TAG "\0"
-            VALUE "SpecialBuild", "Shareware Deluxe Edition\0"
+            VALUE "SpecialBuild", "Freeware Deluxe Edition\0"
             VALUE "SupportURL", APP_REPO_URL "\0"
         END
     END
