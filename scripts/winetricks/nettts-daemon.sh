@@ -163,7 +163,7 @@ read_pid() {
 is_running() {
         local pid
         pid=$(read_pid) || return 1
-        if kill -0 "$pid" >/dev/null 2>&1; then
+        if kill -0 -"$pid" >/dev/null 2>&1; then
                 return 0
         fi
         rm -f "$PID_FILE"
@@ -244,7 +244,7 @@ start_daemon() {
         desktop)
                 local desktop_name=${NETTTS_DESKTOP_NAME:-NetTTS-Desktop}
                 local desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
-                cmd=("$WINE_CMD" explorer "/desktop=${desktop_name},${desktop_size}" "${base_cmd[@]}")
+                cmd=("$WINE_CMD" cmd /c start /min "" explorer "/desktop=${desktop_name},${desktop_size}" "${base_cmd[@]}")
                 ;;
         direct|"")
                 cmd=("$WINE_CMD" "${base_cmd[@]}")
@@ -257,7 +257,7 @@ start_daemon() {
 
         local wine_debug
         wine_debug=$(wine_debug_value)
-        nohup env "WINEPREFIX=$WINEPREFIX" "WINESERVER=$WINESERVER_CMD" "WINEDEBUG=$wine_debug" "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
+        nohup setsid env "WINEPREFIX=$WINEPREFIX" "WINESERVER=$WINESERVER_CMD" "WINEDEBUG=$wine_debug" "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
         local pid=$!
         printf '%s\n' "$pid" >"$PID_FILE"
         log "NetTTS daemon started; PID $pid"
@@ -269,17 +269,17 @@ stop_daemon() {
                 warn "No PID file present; daemon not running?"
                 return 0
         }
-        if kill -0 "$pid" >/dev/null 2>&1; then
-                kill "$pid" >/dev/null 2>&1 || true
+        if kill -0 -"$pid" >/dev/null 2>&1; then
+                kill -- -"$pid" >/dev/null 2>&1 || true
                 for _ in {1..10}; do
-                        if ! kill -0 "$pid" >/dev/null 2>&1; then
+                        if ! kill -0 -"$pid" >/dev/null 2>&1; then
                                 break
                         fi
                         sleep 1
                 done
-                if kill -0 "$pid" >/dev/null 2>&1; then
+                if kill -0 -"$pid" >/dev/null 2>&1; then
                         warn "Process $pid still alive; sending SIGKILL"
-                        kill -9 "$pid" >/dev/null 2>&1 || true
+                        kill -9 -- -"$pid" >/dev/null 2>&1 || true
                 fi
         else
                 warn "Stale PID file for process $pid"
