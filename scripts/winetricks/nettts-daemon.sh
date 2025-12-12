@@ -45,7 +45,8 @@ usage() {
 Usage: nettts-daemon.sh <command> [args]
 
 Commands:
-  start             Launch NetTTS headless with the TCP server enabled
+  start             Launch NetTTS headless with the TCP server enabled (no console)
+  startguiserver    Launch NetTTS with GUI and TCP server enabled (no console window)
   stop              Stop the daemon if it is running
   restart           Stop and then start the daemon
   status            Print whether the daemon is running (exit 0 if running)
@@ -91,28 +92,6 @@ strip_quotes() {
                 var=${var:1:-1}
         fi
         printf '%s' "$var"
-}
-
-hide_desktop_window() {
-        local desktop_name=$1
-        local hide=${NETTTS_HIDE_DESKTOP:-1}
-        [[ "$hide" == "0" || "$hide" == "false" ]] && return 0
-
-        if ! command -v wmctrl >/dev/null 2>&1; then
-                warn "NETTTS_HIDE_DESKTOP is enabled but 'wmctrl' is not installed; desktop window may remain visible"
-                return 0
-        fi
-
-        for _ in {1..10}; do
-                local win_id
-                win_id=$(wmctrl -l | awk -v name="$desktop_name" 'index($0, name) {print $1; exit}')
-                if [[ -n "$win_id" ]]; then
-                        wmctrl -ir "$win_id" -b add,hidden,skip_taskbar,skip_pager,below || true
-                        return 0
-                fi
-                sleep 0.25
-        done
-        warn "Could not locate virtual desktop window '$desktop_name' to hide"
 }
 
 ensure_config() {
@@ -233,7 +212,10 @@ update_device_list() {
         fi
 }
 
-start_daemon() {
+start_instance() {
+        local headless=$1
+        local label=$2
+
         ensure_config
         mkdir -p "$RUN_DIR"
         check_executable
@@ -249,7 +231,12 @@ start_daemon() {
         load_config
         update_device_list || true
 
-        local base_cmd=("$NETTTS_EXE" --startserver --headless --host "$HOST" --port "$PORT")
+        # GUI builds keep the window and avoid console attachment; headless uses
+        # --headlessnoconsole to suppress Wine's console allocation as well.
+        local base_cmd=("$NETTTS_EXE" --startserver --host "$HOST" --port "$PORT")
+        if [[ "$headless" == true ]]; then
+                base_cmd+=(--headlessnoconsole)
+        fi
         if [[ -n "$DEVICE" && "$DEVICE" != "-1" ]]; then
                 base_cmd+=(--devnum "$DEVICE")
         fi
@@ -260,35 +247,22 @@ start_daemon() {
         *) warn "Unknown VOX_MODE '$VOX_MODE'; leaving VOX disabled" ;;
         esac
 
-        local launch_mode=${NETTTS_LAUNCH_MODE:-desktop}
-        local cmd desktop_name desktop_size
-        case "$launch_mode" in
-        desktop)
-                desktop_name=${NETTTS_DESKTOP_NAME:-NetTTS-Desktop}
-                desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
-                # /b keeps cmd from opening a console window, /wait preserves the PID so stop works, /min keeps
-                # the desktop minimized by default.
-                cmd=("$WINE_CMD" cmd /c start /wait /min /b "" explorer "/desktop=${desktop_name},${desktop_size}" "${base_cmd[@]}")
-                ;;
-        direct|"")
-                cmd=("$WINE_CMD" "${base_cmd[@]}")
-                ;;
-        *)
-                warn "Unknown NETTTS_LAUNCH_MODE '$launch_mode'; defaulting to direct"
-                cmd=("$WINE_CMD" "${base_cmd[@]}")
-                ;;
-        esac
+        local cmd=("$WINE_CMD" "${base_cmd[@]}")
 
         local wine_debug
         wine_debug=$(wine_debug_value)
         nohup setsid env "WINEPREFIX=$WINEPREFIX" "WINESERVER=$WINESERVER_CMD" "WINEDEBUG=$wine_debug" "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
         local pid=$!
         printf '%s\n' "$pid" >"$PID_FILE"
-        log "NetTTS daemon started; PID $pid"
+        log "$label started; PID $pid"
+}
 
-        if [[ "$launch_mode" == "desktop" ]]; then
-                hide_desktop_window "$desktop_name" &
-        fi
+start_daemon() {
+        start_instance true "NetTTS daemon"
+}
+
+start_guiserver() {
+        start_instance false "NetTTS GUI server"
 }
 
 stop_daemon() {
@@ -350,6 +324,7 @@ main() {
         shift || true
         case "$cmd" in
         start) start_daemon ;;
+        startguiserver) start_guiserver ;;
         stop) stop_daemon ;;
         restart) stop_daemon; start_daemon ;;
         status) status_daemon ;;
