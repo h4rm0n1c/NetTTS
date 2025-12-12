@@ -198,7 +198,11 @@ start_daemon() {
                 wine_env+=(${extra_env[@]})
         fi
 
-        (umask 0022; env -i "${wine_env[@]}" "$WINE_CMD" "${args[@]}" >>"$LOG_FILE" 2>&1 &)
+        (
+                umask 0022
+                exec env -i "${wine_env[@]}" "$WINE_CMD" "${args[@]}" >>"$LOG_FILE" 2>&1
+        ) &
+
         local pid=$!
         printf '%s' "$pid" >"$PID_FILE"
         log "NetTTS started with PID $pid"
