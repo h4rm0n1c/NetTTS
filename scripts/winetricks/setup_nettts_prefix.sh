@@ -311,12 +311,20 @@ VOX_REG_PATH="$TMPDIR/flextalk-vox-keith-bell.reg"
 printf '[INFO] Preparing FlexTalk Valve VOX profile from %s (ref: %s)\n' "$VOX_REG_URL" "$HELPER_REF"
 download_payload "$VOX_REG_URL" "$VOX_REG_PATH" "FlexTalk Valve VOX profile"
 VOX_REG_WIN_PATH=$(winepath -w "$VOX_REG_PATH")
+
+VOX_SPEAKER_KEY='Software\\AT&T\\Watson\\2.0\\FlexTalk\\2.0\\Speakers\\{11260610-C84A-11CE-AEC4-0000C0E9CB87}'
 printf '[INFO] Importing Valve VOX voice profile into registry...\n'
-if "$WINE_BIN" regedit /S "$VOX_REG_WIN_PATH"; then
-        "$WINESERVER_BIN" -w || true
+if ! "$WINE_BIN" reg import "$VOX_REG_WIN_PATH" >/dev/null 2>&1; then
+        warn "reg import failed; retrying with regedit /S"
+        "$WINE_BIN" regedit /S "$VOX_REG_WIN_PATH" || warn "regedit could not import Valve VOX profile"
+fi
+"$WINESERVER_BIN" -w || true
+
+if "$WINE_BIN" reg QUERY "HKLM\\$VOX_SPEAKER_KEY" >/dev/null 2>&1 && \
+   "$WINE_BIN" reg QUERY "HKCU\\$VOX_SPEAKER_KEY" >/dev/null 2>&1; then
         printf '[INFO] FlexTalk Valve VOX settings imported.\n'
 else
-        warn "Failed to import FlexTalk Valve VOX registry settings."
+        error "FlexTalk Valve VOX registry keys not present after import; check Wine prefix and rerun."
 fi
 
 NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
