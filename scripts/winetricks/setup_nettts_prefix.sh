@@ -12,6 +12,7 @@ DEFAULT_HELPER_REF="main"
 DEFAULT_DAEMON_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts-daemon.sh"
 DEFAULT_GUI_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts-gui.sh"
 DEFAULT_FLEXCTL_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/flextalk-controlpanel.sh"
+DEFAULT_VOX_REG_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/flextalk-vox-keith-bell.reg"
 DEFAULT_ROOT_DIR="$HOME/nettts"
 
 usage() {
@@ -34,6 +35,7 @@ Options:
   --daemon-url <URL>    Override the NetTTS daemon helper download (default: $DEFAULT_DAEMON_URL)
   --gui-url <URL>       Override the NetTTS GUI helper download (default: $DEFAULT_GUI_URL)
   --flexctl-url <URL>   Override the FlexTalk control panel helper download (default: $DEFAULT_FLEXCTL_URL)
+  --vox-reg-url <URL>   Override the FlexTalk Valve VOX registry profile (default: $DEFAULT_VOX_REG_URL)
   -h, --help            Show this help text
 USAGE
 }
@@ -84,6 +86,7 @@ HELPER_REF="$DEFAULT_HELPER_REF"
 DAEMON_URL="$DEFAULT_DAEMON_URL"
 GUI_URL="$DEFAULT_GUI_URL"
 FLEXCTL_URL="$DEFAULT_FLEXCTL_URL"
+VOX_REG_URL="$DEFAULT_VOX_REG_URL"
 
 while [[ $# -gt 0 ]]; do
         case $1 in
@@ -145,6 +148,7 @@ while [[ $# -gt 0 ]]; do
                 DAEMON_URL=""
                 GUI_URL=""
                 FLEXCTL_URL=""
+                VOX_REG_URL=""
                 ;;
         --daemon-url)
                 shift
@@ -160,6 +164,11 @@ while [[ $# -gt 0 ]]; do
                 shift
                 [[ $# -gt 0 ]] || error "--flexctl-url requires a value"
                 FLEXCTL_URL=$1
+                ;;
+        --vox-reg-url)
+                shift
+                [[ $# -gt 0 ]] || error "--vox-reg-url requires a value"
+                VOX_REG_URL=$1
                 ;;
         -h|--help)
                 usage
@@ -186,6 +195,10 @@ fi
 
 if [[ -z "$FLEXCTL_URL" ]]; then
         FLEXCTL_URL=$(helper_url_for_ref "$HELPER_REF" "scripts/winetricks/flextalk-controlpanel.sh")
+fi
+
+if [[ -z "$VOX_REG_URL" ]]; then
+        VOX_REG_URL=$(helper_url_for_ref "$HELPER_REF" "scripts/winetricks/flextalk-vox-keith-bell.reg")
 fi
 
 mkdir -p "$ROOT_DIR"
@@ -292,6 +305,18 @@ if [[ -d "$FLEXTALK_INSTALL_UNIX" ]]; then
         printf '[INFO] FlexTalk installed at %s\n' "$FLEXTALK_INSTALL_UNIX"
 else
         warn "FlexTalk not detected at $FLEXTALK_INSTALL_WIN; confirm the GUI install completed successfully."
+fi
+
+VOX_REG_PATH="$TMPDIR/flextalk-vox-keith-bell.reg"
+printf '[INFO] Preparing FlexTalk Valve VOX profile from %s (ref: %s)\n' "$VOX_REG_URL" "$HELPER_REF"
+download_payload "$VOX_REG_URL" "$VOX_REG_PATH" "FlexTalk Valve VOX profile"
+VOX_REG_WIN_PATH=$(winepath -w "$VOX_REG_PATH")
+printf '[INFO] Importing Valve VOX voice profile into registry...\n'
+if "$WINE_BIN" regedit /S "$VOX_REG_WIN_PATH"; then
+        "$WINESERVER_BIN" -w || true
+        printf '[INFO] FlexTalk Valve VOX settings imported.\n'
+else
+        warn "Failed to import FlexTalk Valve VOX registry settings."
 fi
 
 NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
