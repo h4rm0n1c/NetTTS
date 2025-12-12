@@ -91,18 +91,6 @@ nc 127.0.0.1 5556 | while read -r line; do
 done
 ```
 
-On Windows, you can use PowerShell to validate the status server without any extra tools (pair it with `nettts_gui.exe --runserver` or the daemon script):
-
-```powershell
-powershell -NoProfile -Command "\
-  $client = New-Object System.Net.Sockets.TcpClient('127.0.0.1', 5556);\
-  $reader = New-Object System.IO.StreamReader($client.GetStream());\
-  while(($line = $reader.ReadLine()) -ne $null){ Write-Host \"STATUS: $line\" }\
-"
-```
-
-
-
 Thanks to valve software as well for making some fucking incredible games.
 
 This application is a love letter to the Win32 application style of the 90s and 2000s that defined the early tech experiences of so many IT nerds like me.
