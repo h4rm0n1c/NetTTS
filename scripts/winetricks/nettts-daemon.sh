@@ -160,16 +160,6 @@ is_running() {
         return 1
 }
 
-wine_debug_value() {
-        if [[ -n ${NETTTS_WINEDEBUG:-} ]]; then
-                printf '%s' "$NETTTS_WINEDEBUG"
-        elif [[ -n ${WINEDEBUG:-} ]]; then
-                printf '%s' "$WINEDEBUG"
-        else
-                printf '%s' "-all"
-        fi
-}
-
 start_daemon() {
         ensure_config
         ensure_runtime_paths
@@ -192,7 +182,7 @@ start_daemon() {
                 local desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
                 wine_start=(explorer "/desktop=${desktop_name},${desktop_size}" "${args[@]}")
         else
-                wine_start=(start /min "${args[@]}")
+                wine_start=(start /min /wait "" "${args[@]}")
         fi
 
         log "Starting NetTTS daemon..."
@@ -203,22 +193,15 @@ start_daemon() {
             extra_env=()
         fi
 
-        local wine_env=(
-                "WINEPREFIX=$WINEPREFIX"
-                "WINEDEBUG=$(wine_debug_value)"
-        )
+        local wine_env=("WINEPREFIX=$WINEPREFIX")
 
         if [[ ${#extra_env[@]} -gt 0 ]]; then
                 wine_env+=(${extra_env[@]})
         fi
 
-        # Preload the wineserver to reduce surface races before launching the GUI.
-        "$WINESERVER_CMD" -p >/dev/null 2>&1 || true
-
         (
                 umask 0022
-                exec setsid env "${wine_env[@]}" "$WINE_CMD" "${wine_start[@]}" \
-                        </dev/null >/dev/null 2>&1
+                exec setsid env "${wine_env[@]}" "$WINE_CMD" "${wine_start[@]}"
         ) &
 
         local pid=$!
