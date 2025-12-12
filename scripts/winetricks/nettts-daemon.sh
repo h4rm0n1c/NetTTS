@@ -138,6 +138,23 @@ load_config() {
         fi
 }
 
+resolve_vox_mode() {
+        local mode
+        mode=$(trim "${VOX_MODE:-}")
+        mode=${mode,,}
+        case "$mode" in
+        vox|voxclean|off|none|disabled) ;;
+        1|true|yes|on) mode=vox ;;
+        0|false|no|off) mode=off ;;
+        "") mode=vox ;;
+        *)
+                warn "Unknown VOX_MODE '$VOX_MODE'; defaulting to VOX off"
+                mode=off
+                ;;
+        esac
+        VOX_MODE=$mode
+}
+
 ensure_log_file() {
         if [[ ! -e "$LOG_FILE" ]]; then
                 if ! touch "$LOG_FILE" 2>/dev/null; then
@@ -229,6 +246,7 @@ start_instance() {
                 return 0
         fi
         load_config
+        resolve_vox_mode
         update_device_list || true
 
         # GUI builds keep the window and avoid console attachment; headless uses
@@ -243,9 +261,10 @@ start_instance() {
         case "$VOX_MODE" in
         vox) base_cmd+=(--vox) ;;
         voxclean) base_cmd+=(--voxclean) ;;
-        off|none|disabled|"") ;;
-        *) warn "Unknown VOX_MODE '$VOX_MODE'; leaving VOX disabled" ;;
+        off|none|disabled) ;;
         esac
+
+        log "Starting with VOX_MODE='$VOX_MODE' (flags: ${base_cmd[*]:-})"
 
         local cmd=("$WINE_CMD" "${base_cmd[@]}")
 
