@@ -30,8 +30,6 @@ else
         WINESERVER_CMD=wineserver
 fi
 
-LOG_FILE=${NETTTS_LOG_FILE:-"$WINEPREFIX/drive_c/nettts/nettts.log"}
-LOG_FILE_WIN=${NETTTS_LOG_FILE_WIN:-C:\\nettts\\nettts.log}
 NC_BIN=${NETTTS_NC_BIN:-nc}
 NC_TIMEOUT=${NETTTS_NC_TIMEOUT:-3}
 CONFIG_DIR="$BASE_DIR/etc"
@@ -52,7 +50,7 @@ Commands:
   speak <text>      Send text to the TCP server via netcat (or pipe stdin)
   show-config       Display the service configuration file
   config-path       Print the configuration file path
-  log-path          Print the daemon log file path
+  log-path          Explain where NetTTS keeps its own logs
   help              Show this help message
 USAGE
 }
@@ -94,19 +92,6 @@ strip_quotes() {
 
 ensure_runtime_paths() {
         mkdir -p "$RUN_DIR"
-        mkdir -p "$(dirname "$LOG_FILE")"
-}
-
-ensure_log_file() {
-        if [[ ! -e "$LOG_FILE" ]]; then
-                if ! touch "$LOG_FILE" 2>/dev/null; then
-                        error "Cannot create log file $LOG_FILE; set NETTTS_LOG_FILE"
-                fi
-        fi
-
-        if [[ ! -w "$LOG_FILE" ]]; then
-                error "Log file $LOG_FILE is not writable; adjust permissions or set NETTTS_LOG_FILE"
-        fi
 }
 
 ensure_config() {
@@ -188,7 +173,6 @@ wine_debug_value() {
 start_daemon() {
         ensure_config
         ensure_runtime_paths
-        ensure_log_file
         check_executable
 
         require_cmd "$NC_BIN"
@@ -212,7 +196,6 @@ start_daemon() {
         fi
 
         log "Starting NetTTS daemon..."
-        log "Log file: $LOG_FILE (Windows: $LOG_FILE_WIN)"
 
         if [[ -n ${NETTTS_ENV:-} ]]; then
             IFS=' ' read -r -a extra_env <<<"$NETTTS_ENV"
@@ -235,7 +218,7 @@ start_daemon() {
         (
                 umask 0022
                 exec setsid env "${wine_env[@]}" "$WINE_CMD" "${wine_start[@]}" \
-                        >>"$LOG_FILE" 2>&1 </dev/null
+                        </dev/null >/dev/null 2>&1
         ) &
 
         local pid=$!
@@ -311,8 +294,7 @@ main() {
                 printf '%s\n' "$CONFIG_FILE"
                 ;;
         log-path)
-                printf 'Host path: %s\n' "$LOG_FILE"
-                printf 'Windows path: %s\n' "$LOG_FILE_WIN"
+                printf 'NetTTS manages its own logs inside the prefix; no host log redirection is used.\n'
                 ;;
         help|-h|--help)
                 usage
