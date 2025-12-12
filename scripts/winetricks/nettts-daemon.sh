@@ -39,6 +39,8 @@ CONFIG_FILE="$CONFIG_DIR/nettts-daemon.conf"
 RUN_DIR="$BASE_DIR/run"
 PID_FILE="$RUN_DIR/nettts-daemon.pid"
 NETTTS_EXE="$WINEPREFIX/drive_c/nettts/nettts_gui.exe"
+HOME_DIR=${NETTTS_HOME:-${HOME:-$BASE_DIR}}
+CACHE_DIR=${NETTTS_CACHE_HOME:-"$BASE_DIR/.cache"}
 
 usage() {
         cat <<'USAGE'
@@ -140,6 +142,35 @@ check_executable() {
         [[ -f "$NETTTS_EXE" ]] || error "NetTTS executable not found at $NETTTS_EXE"
 }
 
+ensure_alsa_fallback() {
+        local pipewire_alsa_so="/usr/lib/i386-linux-gnu/alsa-lib/libasound_module_pcm_pipewire.so"
+
+        # Respect any user-provided ALSA overrides and only intervene when the
+        # PipeWire ALSA shim is missing (common in minimal service setups).
+        if [[ -n ${ALSA_CONFIG_PATH:-} || -f "$pipewire_alsa_so" ]]; then
+                return
+        fi
+
+        mkdir -p "$CONFIG_DIR"
+        local fallback_conf="$CONFIG_DIR/alsa-fallback.conf"
+
+        cat >"$fallback_conf" <<'EOF'
+pcm.!default {
+        type plug
+        slave.pcm "sysdefault"
+}
+
+ctl.!default {
+        type sysdefault
+}
+EOF
+
+        export ALSA_CONFIG_PATH="$fallback_conf"
+        export PIPEWIRE_ALSA=0
+
+        warn "PipeWire ALSA shim not found; using fallback ALSA config at $fallback_conf"
+}
+
 read_pid() {
         [[ -f "$PID_FILE" ]] || return 1
         local pid
@@ -174,6 +205,10 @@ start_daemon() {
         check_executable
         mkdir -p "$(dirname "$LOG_FILE")"
 
+        mkdir -p "$CACHE_DIR/fontconfig"
+
+        ensure_alsa_fallback
+
         require_cmd "$NC_BIN"
 
         load_config
@@ -197,7 +232,17 @@ start_daemon() {
         local wine_env=(
                 "WINEPREFIX=$WINEPREFIX"
                 "WINEDEBUG=$(wine_debug_value)"
+                "HOME=$HOME_DIR"
+                "XDG_CACHE_HOME=$CACHE_DIR"
         )
+
+        if [[ -n ${ALSA_CONFIG_PATH:-} ]]; then
+                wine_env+=("ALSA_CONFIG_PATH=$ALSA_CONFIG_PATH")
+        fi
+
+        if [[ -n ${PIPEWIRE_ALSA:-} ]]; then
+                wine_env+=("PIPEWIRE_ALSA=$PIPEWIRE_ALSA")
+        fi
 
         if [[ ${#extra_env[@]} -gt 0 ]]; then
                 wine_env+=(${extra_env[@]})
