@@ -200,7 +200,8 @@ start_daemon() {
 
         (
                 umask 0022
-                exec env -i "${wine_env[@]}" "$WINE_CMD" "${args[@]}" >>"$LOG_FILE" 2>&1
+                exec setsid env -i "${wine_env[@]}" "$WINE_CMD" "${args[@]}" \
+                        >>"$LOG_FILE" 2>&1 </dev/null
         ) &
 
         local pid=$!
