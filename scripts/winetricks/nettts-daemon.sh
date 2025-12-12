@@ -180,6 +180,11 @@ start_daemon() {
 
         local args=("$NETTTS_EXE" --startserver --host "$HOST" --port "$PORT" --vox "$VOX_MODE" --device "$DEVICE")
 
+        # Use Wine's start command to keep the process headless; /b prevents a console
+        # window, /min minimizes any potential window, and /wait keeps the PID tied to
+        # the lifecycle of the NetTTS process.
+        local wine_start=(start /min /b /wait /unix "${args[@]}")
+
         log "Starting NetTTS daemon..."
         log "Log file: $LOG_FILE (Windows: $LOG_FILE_WIN)"
 
@@ -200,7 +205,7 @@ start_daemon() {
 
         (
                 umask 0022
-                exec setsid env -i "${wine_env[@]}" "$WINE_CMD" "${args[@]}" \
+                exec setsid env -i "${wine_env[@]}" "$WINE_CMD" "${wine_start[@]}" \
                         >>"$LOG_FILE" 2>&1 </dev/null
         ) &
 
