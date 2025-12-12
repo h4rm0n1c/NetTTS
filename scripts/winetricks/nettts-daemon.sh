@@ -46,6 +46,7 @@ Usage: nettts-daemon.sh <command> [args]
 
 Commands:
   start             Launch NetTTS headless with the TCP server enabled
+  startguiserver    Launch NetTTS with GUI and TCP server enabled
   stop              Stop the daemon if it is running
   restart           Stop and then start the daemon
   status            Print whether the daemon is running (exit 0 if running)
@@ -211,7 +212,10 @@ update_device_list() {
         fi
 }
 
-start_daemon() {
+start_instance() {
+        local headless=$1
+        local label=$2
+
         ensure_config
         mkdir -p "$RUN_DIR"
         check_executable
@@ -227,7 +231,10 @@ start_daemon() {
         load_config
         update_device_list || true
 
-        local base_cmd=("$NETTTS_EXE" --startserver --headlessnoconsole --host "$HOST" --port "$PORT")
+        local base_cmd=("$NETTTS_EXE" --startserver --host "$HOST" --port "$PORT")
+        if [[ "$headless" == true ]]; then
+                base_cmd+=(--headlessnoconsole)
+        fi
         if [[ -n "$DEVICE" && "$DEVICE" != "-1" ]]; then
                 base_cmd+=(--devnum "$DEVICE")
         fi
@@ -245,7 +252,15 @@ start_daemon() {
         nohup setsid env "WINEPREFIX=$WINEPREFIX" "WINESERVER=$WINESERVER_CMD" "WINEDEBUG=$wine_debug" "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
         local pid=$!
         printf '%s\n' "$pid" >"$PID_FILE"
-        log "NetTTS daemon started; PID $pid"
+        log "$label started; PID $pid"
+}
+
+start_daemon() {
+        start_instance true "NetTTS daemon"
+}
+
+start_guiserver() {
+        start_instance false "NetTTS GUI server"
 }
 
 stop_daemon() {
@@ -307,6 +322,7 @@ main() {
         shift || true
         case "$cmd" in
         start) start_daemon ;;
+        startguiserver) start_guiserver ;;
         stop) stop_daemon ;;
         restart) stop_daemon; start_daemon ;;
         status) status_daemon ;;
