@@ -297,7 +297,6 @@ BIN_DIR="$BASE_DIR/bin"
 CONFIG_DIR="$BASE_DIR/etc"
 RUN_DIR="$BASE_DIR/run"
 CONFIG_FILE="$CONFIG_DIR/nettts-daemon.conf"
-DEVICES_FILE="$CONFIG_DIR/nettts-devices.txt"
 
 mkdir -p "$BIN_DIR" "$CONFIG_DIR" "$RUN_DIR"
 
@@ -307,20 +306,11 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 # HOST/PORT define the TCP endpoint for --startserver mode.
 # DEVICE selects the FlexTalk output device index (-1 = default mapper).
 # VOX_MODE accepts 'vox', 'voxclean', or 'off'.
-# See $DEVICES_FILE for the most recently captured device listing.
 HOST=127.0.0.1
 PORT=5555
 DEVICE=-1
 VOX_MODE=vox
 EOF
-fi
-
-DEVICE_LIST_OUTPUT=""
-if DEVICE_LIST_OUTPUT=$(env WINEPREFIX="$WINEPREFIX" "$WINE_BIN" "$NETTTS_TARGET" --headless --list-devices 2>&1); then
-        printf '%s\n' "$DEVICE_LIST_OUTPUT" >"$DEVICES_FILE"
-else
-        warn "Failed to enumerate output devices; captured output in $DEVICES_FILE"
-        printf '%s\n' "$DEVICE_LIST_OUTPUT" >"$DEVICES_FILE"
 fi
 
 cat >"$BIN_DIR/nettts-daemon.sh" <<'DAEMON'
@@ -356,12 +346,12 @@ else
         WINESERVER_CMD=wineserver
 fi
 
-LOG_FILE=${NETTTS_LOG_FILE:-/var/log/nettts.log}
+LOG_FILE=${NETTTS_LOG_FILE:-"$WINEPREFIX/drive_c/nettts/nettts.log"}
+LOG_FILE_WIN=${NETTTS_LOG_FILE_WIN:-C:\\nettts\\nettts.log}
 NC_BIN=${NETTTS_NC_BIN:-nc}
 NC_TIMEOUT=${NETTTS_NC_TIMEOUT:-3}
 CONFIG_DIR="$BASE_DIR/etc"
 CONFIG_FILE="$CONFIG_DIR/nettts-daemon.conf"
-DEVICES_FILE="$CONFIG_DIR/nettts-devices.txt"
 RUN_DIR="$BASE_DIR/run"
 PID_FILE="$RUN_DIR/nettts-daemon.pid"
 NETTTS_EXE="$WINEPREFIX/drive_c/nettts/nettts_gui.exe"
@@ -376,7 +366,6 @@ Commands:
   restart           Stop and then start the daemon
   status            Print whether the daemon is running (exit 0 if running)
   speak <text>      Send text to the TCP server via netcat (or pipe stdin)
-  list-devices      Refresh and print the captured audio device list
   show-config       Display the service configuration file
   config-path       Print the configuration file path
   log-path          Print the daemon log file path
@@ -463,17 +452,6 @@ load_config() {
         fi
 }
 
-ensure_log_file() {
-        if [[ ! -e "$LOG_FILE" ]]; then
-                if ! touch "$LOG_FILE" 2>/dev/null; then
-                        error "Cannot create log file $LOG_FILE; adjust permissions or set NETTTS_LOG_FILE"
-                fi
-        fi
-        if [[ ! -w "$LOG_FILE" ]]; then
-                error "Log file $LOG_FILE is not writable"
-        fi
-}
-
 check_executable() {
         [[ -f "$NETTTS_EXE" ]] || error "NetTTS executable not found at $NETTTS_EXE"
 }
@@ -506,27 +484,11 @@ wine_debug_value() {
         fi
 }
 
-update_device_list() {
-        ensure_config
-        check_executable
-        require_cmd "$WINE_CMD"
-        local output
-        if output=$(env "WINEPREFIX=$WINEPREFIX" "$WINE_CMD" "$NETTTS_EXE" --headless --list-devices 2>&1); then
-                printf '%s\n' "$output" >"$DEVICES_FILE"
-                log "Captured device list at $DEVICES_FILE"
-                return 0
-        else
-                printf '%s\n' "$output" >"$DEVICES_FILE"
-                warn "Device enumeration failed; see $DEVICES_FILE"
-                return 1
-        fi
-}
-
 start_daemon() {
         ensure_config
         mkdir -p "$RUN_DIR"
         check_executable
-        ensure_log_file
+        mkdir -p "$(dirname "$LOG_FILE")"
         require_cmd "$WINE_CMD"
         require_cmd "$WINESERVER_CMD"
         if is_running; then
@@ -536,9 +498,8 @@ start_daemon() {
                 return 0
         fi
         load_config
-        update_device_list || true
 
-        local cmd=("$WINE_CMD" "$NETTTS_EXE" --startserver --headless --host "$HOST" --port "$PORT")
+        local cmd=("$WINE_CMD" start /unix /b /wait "$NETTTS_EXE" --startserver --headless --host "$HOST" --port "$PORT" --log "$LOG_FILE_WIN")
         if [[ -n "$DEVICE" && "$DEVICE" != "-1" ]]; then
                 cmd+=(--devnum "$DEVICE")
         fi
@@ -551,7 +512,7 @@ start_daemon() {
 
         local wine_debug
         wine_debug=$(wine_debug_value)
-        nohup env "WINEPREFIX=$WINEPREFIX" "WINESERVER=$WINESERVER_CMD" "WINEDEBUG=$wine_debug" "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
+        nohup env "WINEPREFIX=$WINEPREFIX" "WINESERVER=$WINESERVER_CMD" "WINEDEBUG=$wine_debug" "${cmd[@]}" >/dev/null 2>&1 &
         local pid=$!
         printf '%s\n' "$pid" >"$PID_FILE"
         log "NetTTS daemon started; PID $pid"
@@ -620,12 +581,6 @@ main() {
         restart) stop_daemon; start_daemon ;;
         status) status_daemon ;;
         speak) speak_command "$@" ;;
-        list-devices)
-                local rc=0
-                update_device_list || rc=$?
-                [[ -f "$DEVICES_FILE" ]] && cat "$DEVICES_FILE"
-                return $rc
-                ;;
         show-config)
                 ensure_config
                 cat "$CONFIG_FILE"
@@ -635,7 +590,8 @@ main() {
                 printf '%s\n' "$CONFIG_FILE"
                 ;;
         log-path)
-                printf '%s\n' "$LOG_FILE"
+                printf 'Host path: %s\n' "$LOG_FILE"
+                printf 'Windows path: %s\n' "$LOG_FILE_WIN"
                 ;;
         help|-h|--help)
                 usage
@@ -731,8 +687,7 @@ cat <<EOF
 - Start Menu shortcut: $SHORTCUT_STATUS
 - Helper scripts: $BIN_DIR/nettts-daemon.sh, $BIN_DIR/nettts-gui.sh, $BIN_DIR/flextalk-controlpanel.sh
 - Config file: $CONFIG_FILE
-- Device list: $DEVICES_FILE
-- Log file: /var/log/nettts.log - create it ahead of time if needed
+- Log file: $WINEPREFIX/drive_c/nettts/nettts.log (Windows path: C:\\nettts\\nettts.log)
 
 Launch example:
   WINEPREFIX="$WINEPREFIX" "$WINE_BIN" "$NETTTS_TARGET"
