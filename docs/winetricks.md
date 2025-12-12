@@ -51,8 +51,7 @@ After a successful run you can expect:
   - `flextalk-controlpanel.sh` – open the FlexTalk control panel (`C:\windows\system32\flextalk.cpl`)
 - Configuration and state in `<root>/etc/`:
   - `nettts-daemon.conf` – TCP host/port, VOX mode, and output device selection (VOX enabled and device `-1` by default)
-  - `nettts-devices.txt` – latest snapshot from `nettts_gui.exe --list-devices`
-- `/var/log/nettts.log` – log file used by the daemon helper (create and chown if your user cannot write there)
+  - Logs written by `nettts_gui.exe --log` live alongside the executable (`<root>/wineprefix/drive_c/nettts/nettts.log`, Windows path `C:\\nettts\\nettts.log`)
 
 Launch NetTTS directly with `wine "$WINEPREFIX/drive_c/nettts/nettts_gui.exe"` (or swap in your `wrun` wrapper).
 Re-running the script against the same prefix updates the executable in place while keeping the existing SAPI/FlexTalk setup and
@@ -61,5 +60,4 @@ refreshing the helper scripts.
 ### Daemon tips
 
 - Edit `<root>/etc/nettts-daemon.conf` to change the TCP host/port, VOX mode (`vox`, `voxclean`, or `off`), or audio device index. Run `<root>/bin/nettts-daemon.sh show-config` to review the current file.
-- `<root>/bin/nettts-daemon.sh list-devices` refreshes `<root>/etc/nettts-devices.txt` and prints the captured list to stdout.
-- `<root>/bin/nettts-daemon.sh start` launches the server headless (`--startserver --headless`) and tails output into `/var/log/nettts.log`. Use `stop`, `restart`, `status`, or `speak "Hello world"` to manage it.
+- `<root>/bin/nettts-daemon.sh start` launches the server headless (`--startserver --headless`) using Wine's `start /b` to avoid popping up a console window and writes runtime logs via the app's built-in logger to `C:\\nettts\\nettts.log`. Use `stop`, `restart`, `status`, or `speak "Hello world"` to manage it.
