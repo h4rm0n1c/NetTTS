@@ -45,7 +45,7 @@ std::wstring get_help_text_w(){ // central source of truth
     // (Keep this short and accurate; main.cpp owns behavior.)
     // Current flags are based on the code in main/net_server/tts_engine.
     const wchar_t* lines[] = {
-        L"Usage: nettts_gui.exe [--startserver] [--headless]",
+        L"Usage: nettts_gui.exe [--startserver] [--headless|--headlessnoconsole]",
         L"                       [--host HOST] [--port N] [--devnum N]",
         L"                       [--vox | --voxclean] [--posn-ms N] [--selftest]",
         L"                       [--status-port N] [--log C:\\path\\file.log]",
@@ -53,6 +53,7 @@ std::wstring get_help_text_w(){ // central source of truth
         L"Options:",
         L"  --startserver        Start the TCP server",
         L"  --headless           Run without the GUI (console mode; prints runtime logs)",
+        L"  --headlessnoconsole  Headless mode without attaching/allocating a console (logs only)",
         L"  --host HOST          TCP host to bind (default 127.0.0.1)",
         L"  --port N             TCP port (default 5555)",
         L"  --status-port N      Status server TCP port (default --port+1)",
@@ -102,7 +103,7 @@ std::wstring get_help_text_w(){ // central source of truth
 void usage_short(){
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     const wchar_t* s =
-        L"Usage: nettts_gui.exe [--startserver] [--headless] "
+        L"Usage: nettts_gui.exe [--startserver] [--headless|--headlessnoconsole] "
         L"[--host HOST] [--port N] [--devnum N] [--vox|--voxclean]\r\n";
     if (h && h != INVALID_HANDLE_VALUE){
         DWORD w; WriteConsoleW(h, s, (DWORD)wcslen(s), &w, nullptr);

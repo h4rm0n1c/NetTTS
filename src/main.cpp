@@ -32,6 +32,7 @@
 // CLI state
 static bool         g_runserver     = false; // --startserver
 static bool         g_headless      = false; // --headless
+static bool         g_headless_noconsole = false; // --headlessnoconsole
 static std::wstring g_host          = L"127.0.0.1";
 static int          g_port          = 5555;
 static int          g_status_port   = -1;    // default: port+1
@@ -473,6 +474,7 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
 }
         else if (a==L"--runserver" || a==L"--startserver") g_runserver=true;
         else if (a==L"--headless" || a==L"--verbose") g_headless=true;
+        else if (a==L"--headlessnoconsole") { g_headless=true; g_headless_noconsole=true; }
         else if (a==L"--log" && i+1<argc){ log_set_path(argv[++i]); }
         else if (a==L"--vox"){ g_vox_enabled = true; }
         else if (a==L"--voxclean") { g_vox_enabled = true; g_vox_clean = true; }
@@ -505,8 +507,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
     // Helps avoid repeated WinMM queries when showing help or responding to flags.
     (void)get_device_mapping_text();
 
-    if (g_headless || g_cli_help) log_attach_console();
-    log_set_verbose(g_headless);
+    if (g_cli_help || (g_headless && !g_headless_noconsole)) log_attach_console();
+    log_set_verbose(g_headless && !g_headless_noconsole);
 
     if (g_cli_help) {
         show_help_and_exit(false);
