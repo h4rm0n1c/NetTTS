@@ -51,7 +51,7 @@ std::wstring get_help_text_w(){ // central source of truth
         L"                       [--status-port N] [--log C:\\path\\file.log]",
         L"",
         L"Options:",
-        L"  --startserver        Start the TCP server",
+        L"  --startserver        Start the TCP server (GUI stays visible; no console window)",
         L"  --headless           Run without the GUI (console mode; prints runtime logs)",
         L"  --headlessnoconsole  Headless mode without attaching/allocating a console (logs only)",
         L"  --host HOST          TCP host to bind (default 127.0.0.1)",

@@ -45,8 +45,8 @@ usage() {
 Usage: nettts-daemon.sh <command> [args]
 
 Commands:
-  start             Launch NetTTS headless with the TCP server enabled
-  startguiserver    Launch NetTTS with GUI and TCP server enabled
+  start             Launch NetTTS headless with the TCP server enabled (no console)
+  startguiserver    Launch NetTTS with GUI and TCP server enabled (no console window)
   stop              Stop the daemon if it is running
   restart           Stop and then start the daemon
   status            Print whether the daemon is running (exit 0 if running)
@@ -231,6 +231,8 @@ start_instance() {
         load_config
         update_device_list || true
 
+        # GUI builds keep the window and avoid console attachment; headless uses
+        # --headlessnoconsole to suppress Wine's console allocation as well.
         local base_cmd=("$NETTTS_EXE" --startserver --host "$HOST" --port "$PORT")
         if [[ "$headless" == true ]]; then
                 base_cmd+=(--headlessnoconsole)
