@@ -279,18 +279,19 @@ start_daemon() {
 
         local args=("$NETTTS_EXE" --startserver --host "$HOST" --port "$PORT" --vox "$VOX_MODE" --device "$DEVICE")
 
-        # Default to a Wine virtual desktop to suppress console surfaces without relying
-        # on `start /b`, which can emit noisy background logs. Allow opting out for users
-        # who prefer the old behavior.
-        local launch_mode=${NETTTS_LAUNCH_MODE:-desktop}
+        # Keep the launch simple and closer to the long-standing behavior: rely on
+        # Wine's `start /min` to avoid a visible console while still detaching the
+        # process. Users can override NETTTS_LAUNCH_MODE to "desktop" if they need
+        # the virtual desktop path for their environment.
+        local launch_mode=${NETTTS_LAUNCH_MODE:-start}
         local wine_start
 
-        if [[ $launch_mode == start ]]; then
-                wine_start=(start /min /wait /unix "${args[@]}")
-        else
+        if [[ $launch_mode == desktop ]]; then
                 local desktop_name=${NETTTS_DESKTOP_NAME:-NetTTS-Headless}
                 local desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
                 wine_start=(explorer "/desktop=${desktop_name},${desktop_size}" "${args[@]}")
+        else
+                wine_start=(start /min /unix "${args[@]}")
         fi
 
         log "Starting NetTTS daemon..."
@@ -335,10 +336,6 @@ start_daemon() {
         local pid=$!
         printf '%s' "$pid" >"$PID_FILE"
         log "NetTTS started with PID $pid"
-
-        if ! "$WINESERVER_CMD" -w >/dev/null 2>&1; then
-                warn "wineserver -w reported an issue after starting NetTTS"
-        fi
 }
 
 stop_daemon() {
