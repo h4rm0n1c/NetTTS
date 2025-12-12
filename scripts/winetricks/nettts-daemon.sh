@@ -171,26 +171,34 @@ start_daemon() {
 
         local args=("$NETTTS_EXE" --startserver --host "$HOST" --port "$PORT" --vox "$VOX_MODE" --device "$DEVICE")
 
-        # Keep the launch simple and match the GUI launcher as closely as possible;
-        # we only add `start /min` to avoid a visible console when running as a
-        # service.
-        local launch_mode=${NETTTS_LAUNCH_MODE:-start}
+        # Match the GUI launch as closely as possible by default: run the EXE
+        # directly. Optional modes: NETTTS_LAUNCH_MODE=start (use `start /min` to
+        # request a minimized window) or NETTTS_LAUNCH_MODE=desktop (Wine virtual
+        # desktop). The minimized path mirrors `wine start /min "" ...` without
+        # adding extra flags that have caused instability.
+        local launch_mode=${NETTTS_LAUNCH_MODE:-direct}
         local wine_start
 
-        if [[ $launch_mode == desktop ]]; then
+        case "$launch_mode" in
+        start|minimized)
+                wine_start=(start /min "" "${args[@]}")
+                ;;
+        desktop)
                 local desktop_name=${NETTTS_DESKTOP_NAME:-NetTTS-Headless}
                 local desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
                 wine_start=(explorer "/desktop=${desktop_name},${desktop_size}" "${args[@]}")
-        else
-                wine_start=(start /min /wait "" "${args[@]}")
-        fi
+                ;;
+        *)
+                wine_start=("${args[@]}")
+                ;;
+        esac
 
         log "Starting NetTTS daemon..."
 
         if [[ -n ${NETTTS_ENV:-} ]]; then
-            IFS=' ' read -r -a extra_env <<<"$NETTTS_ENV"
+                IFS=' ' read -r -a extra_env <<<"$NETTTS_ENV"
         else
-            extra_env=()
+                extra_env=()
         fi
 
         local wine_env=("WINEPREFIX=$WINEPREFIX")
