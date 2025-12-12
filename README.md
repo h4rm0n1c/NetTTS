@@ -34,6 +34,13 @@ Need a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinst
 ./scripts/winetricks/setup_nettts_prefix.sh
 ```
 
+Or grab the freshest winetricks installer script straight from GitHub and point it at `./nettts` alongside your download:
+
+```bash
+curl -fsSLo setup_nettts_prefix.sh https://raw.githubusercontent.com/h4rm0n1c/NetTTS/main/scripts/winetricks/setup_nettts_prefix.sh \
+  && bash setup_nettts_prefix.sh --root-dir "$(pwd)/nettts"
+```
+
 By default everything lands under `~/nettts/`: the Wine prefix lives in `~/nettts/wineprefix/`, helper scripts go into `~/nettts/bin/`, configuration in `~/nettts/etc/`, and `~/nettts/wineprefix/drive_c/nettts/nettts.log` (Windows path `C:\nettts\nettts.log`) is used for daemon logging via the application's own `--log` flag. Override the base location with `--root-dir <path>` (or point at an existing prefix with `--wineprefix`). The script leans on winetricks to apply `winxp`, `vcrun6`, `mfc42`, and `riched20`, downloads the SAPI runtime, FlexTalk voice archive, and the `v0.95f` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and attempts to drop a Start Menu shortcut under `C\Users\Public\Start Menu\Programs` (skipping with a warning if Windows Script Host is unavailable) while seeding utility launchers. FlexTalk's 1997 InstallShield 5 wizard still runs interactively: the helper launches `setup.exe`, waits for you to finish the GUI install, and then moves on to the remaining setup steps.
 
 - `~/nettts/bin/nettts-daemon.sh` – start/stop the headless TCP server and push test utterances (`speak`).
