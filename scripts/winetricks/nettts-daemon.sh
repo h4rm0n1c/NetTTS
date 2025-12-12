@@ -93,6 +93,28 @@ strip_quotes() {
         printf '%s' "$var"
 }
 
+hide_desktop_window() {
+        local desktop_name=$1
+        local hide=${NETTTS_HIDE_DESKTOP:-1}
+        [[ "$hide" == "0" || "$hide" == "false" ]] && return 0
+
+        if ! command -v wmctrl >/dev/null 2>&1; then
+                warn "NETTTS_HIDE_DESKTOP is enabled but 'wmctrl' is not installed; desktop window may remain visible"
+                return 0
+        fi
+
+        for _ in {1..10}; do
+                local win_id
+                win_id=$(wmctrl -l | awk -v name="$desktop_name" 'index($0, name) {print $1; exit}')
+                if [[ -n "$win_id" ]]; then
+                        wmctrl -ir "$win_id" -b add,hidden,skip_taskbar,skip_pager,below || true
+                        return 0
+                fi
+                sleep 0.25
+        done
+        warn "Could not locate virtual desktop window '$desktop_name' to hide"
+}
+
 ensure_config() {
         mkdir -p "$CONFIG_DIR"
         if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -239,11 +261,11 @@ start_daemon() {
         esac
 
         local launch_mode=${NETTTS_LAUNCH_MODE:-direct}
-        local cmd
+        local cmd desktop_name desktop_size
         case "$launch_mode" in
         desktop)
-                local desktop_name=${NETTTS_DESKTOP_NAME:-NetTTS-Desktop}
-                local desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
+                desktop_name=${NETTTS_DESKTOP_NAME:-NetTTS-Desktop}
+                desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
                 # /b keeps cmd from opening a console window, /wait preserves the PID so stop works, /min keeps
                 # the desktop minimized by default.
                 cmd=("$WINE_CMD" cmd /c start /wait /min /b "" explorer "/desktop=${desktop_name},${desktop_size}" "${base_cmd[@]}")
@@ -263,6 +285,10 @@ start_daemon() {
         local pid=$!
         printf '%s\n' "$pid" >"$PID_FILE"
         log "NetTTS daemon started; PID $pid"
+
+        if [[ "$launch_mode" == "desktop" ]]; then
+                hide_desktop_window "$desktop_name" &
+        fi
 }
 
 stop_daemon() {
