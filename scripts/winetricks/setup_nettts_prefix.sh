@@ -649,6 +649,10 @@ set -euo pipefail
 
 unset LD_PRELOAD LD_LIBRARY_PATH GTK3_MODULES GTK_MODULES GTK_PATH QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME || true
 
+# Example: force PulseAudio/Wine to target a non-default sink (uncomment and edit)
+# export FLEXSINK="alsa_output.usb-UC_MIC_ATR2USB-00.analog-stereo"
+# export PULSE_SINK="$FLEXSINK"
+
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BASE_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd -P)
 DEFAULT_WINEPREFIX="$BASE_DIR/wineprefix"

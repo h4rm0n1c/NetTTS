@@ -49,6 +49,15 @@ After a successful run you can expect:
   - `nettts-daemon.sh` – start/stop the headless TCP server, send quick lines with `speak`, and refresh the captured device list
   - `nettts-gui.sh` – launch the GUI build inside the managed prefix
   - `flextalk-controlpanel.sh` – open the FlexTalk control panel (`C:\windows\system32\flextalk.cpl`)
+- To steer the FlexTalk control panel to a specific PulseAudio sink (handy when the default is a null sink for OBS monitoring),
+  export the sink variables before launching it, for example:
+
+  ```bash
+  # Use the ATR2USB stereo device instead of the system default
+  export FLEXSINK="alsa_output.usb-UC_MIC_ATR2USB-00.analog-stereo"
+  export PULSE_SINK="$FLEXSINK"
+  "$BASE_DIR/bin/flextalk-controlpanel.sh"
+  ```
 - Configuration and state in `<root>/etc/`:
   - `nettts-daemon.conf` – TCP host/port, VOX mode, and output device selection (VOX enabled and device `-1` by default)
   - Logs written by `nettts_gui.exe --log` live alongside the executable (`<root>/wineprefix/drive_c/nettts/nettts.log`, Windows path `C:\\nettts\\nettts.log`)
