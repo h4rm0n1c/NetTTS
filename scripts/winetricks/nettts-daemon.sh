@@ -41,6 +41,7 @@ PID_FILE="$RUN_DIR/nettts-daemon.pid"
 NETTTS_EXE="$WINEPREFIX/drive_c/nettts/nettts_gui.exe"
 HOME_DIR=${NETTTS_HOME:-${HOME:-$BASE_DIR}}
 CACHE_DIR=${NETTTS_CACHE_HOME:-"$BASE_DIR/.cache"}
+FC_CACHE_DIR="$CACHE_DIR/fontconfig"
 
 usage() {
         cat <<'USAGE'
@@ -92,6 +93,32 @@ strip_quotes() {
                 var=${var:1:-1}
         fi
         printf '%s' "$var"
+}
+
+ensure_runtime_paths() {
+        mkdir -p "$RUN_DIR"
+        mkdir -p "$(dirname "$LOG_FILE")"
+        mkdir -p "$HOME_DIR" "$CACHE_DIR" "$FC_CACHE_DIR"
+
+        if [[ ! -w "$HOME_DIR" ]]; then
+                error "HOME directory $HOME_DIR is not writable; set NETTTS_HOME"
+        fi
+
+        if [[ ! -w "$CACHE_DIR" ]]; then
+                error "Cache directory $CACHE_DIR is not writable; set NETTTS_CACHE_HOME"
+        fi
+}
+
+ensure_log_file() {
+        if [[ ! -e "$LOG_FILE" ]]; then
+                if ! touch "$LOG_FILE" 2>/dev/null; then
+                        error "Cannot create log file $LOG_FILE; set NETTTS_LOG_FILE"
+                fi
+        fi
+
+        if [[ ! -w "$LOG_FILE" ]]; then
+                error "Log file $LOG_FILE is not writable; adjust permissions or set NETTTS_LOG_FILE"
+        fi
 }
 
 ensure_config() {
@@ -201,11 +228,9 @@ wine_debug_value() {
 
 start_daemon() {
         ensure_config
-        mkdir -p "$RUN_DIR"
+        ensure_runtime_paths
+        ensure_log_file
         check_executable
-        mkdir -p "$(dirname "$LOG_FILE")"
-
-        mkdir -p "$CACHE_DIR/fontconfig"
 
         ensure_alsa_fallback
 
@@ -234,6 +259,8 @@ start_daemon() {
                 "WINEDEBUG=$(wine_debug_value)"
                 "HOME=$HOME_DIR"
                 "XDG_CACHE_HOME=$CACHE_DIR"
+                "FC_CACHEDIR=$FC_CACHE_DIR"
+                "PATH=$PATH"
         )
 
         if [[ -n ${ALSA_CONFIG_PATH:-} ]]; then
