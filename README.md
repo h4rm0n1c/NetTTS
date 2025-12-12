@@ -34,7 +34,7 @@ Need a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinst
 ./scripts/winetricks/setup_nettts_prefix.sh
 ```
 
-By default everything lands under `~/nettts/`: the Wine prefix lives in `~/nettts/wineprefix/`, helper scripts go into `~/nettts/bin/`, configuration in `~/nettts/etc/`, and `~/nettts/wineprefix/drive_c/nettts/nettts.log` (Windows path `C:\nettts\nettts.log`) is used for daemon logging via the application's own `--log` flag. Override the base location with `--root-dir <path>` (or point at an existing prefix with `--wineprefix`). The script leans on winetricks to apply `winxp`, `vcrun6`, `mfc42`, and `riched20`, downloads the SAPI runtime, FlexTalk voice archive, and the `v0.95c` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and attempts to drop a Start Menu shortcut under `C\Users\Public\Start Menu\Programs` (skipping with a warning if Windows Script Host is unavailable) while seeding utility launchers. FlexTalk's 1997 InstallShield 5 wizard still runs interactively: the helper launches `setup.exe`, waits for you to finish the GUI install, and then moves on to the remaining setup steps.
+By default everything lands under `~/nettts/`: the Wine prefix lives in `~/nettts/wineprefix/`, helper scripts go into `~/nettts/bin/`, configuration in `~/nettts/etc/`, and `~/nettts/wineprefix/drive_c/nettts/nettts.log` (Windows path `C:\nettts\nettts.log`) is used for daemon logging via the application's own `--log` flag. Override the base location with `--root-dir <path>` (or point at an existing prefix with `--wineprefix`). The script leans on winetricks to apply `winxp`, `vcrun6`, `mfc42`, and `riched20`, downloads the SAPI runtime, FlexTalk voice archive, and the `v0.95e` NetTTS release zip (override with `--sapi-url`, `--flextalk-url`, or `--nettts-url` if you need a different build) into `C:\nettts`, and attempts to drop a Start Menu shortcut under `C\Users\Public\Start Menu\Programs` (skipping with a warning if Windows Script Host is unavailable) while seeding utility launchers. FlexTalk's 1997 InstallShield 5 wizard still runs interactively: the helper launches `setup.exe`, waits for you to finish the GUI install, and then moves on to the remaining setup steps.
 
 - `~/nettts/bin/nettts-daemon.sh` – start/stop the headless TCP server and push test utterances (`speak`).
 - `~/nettts/bin/nettts-gui.sh` – launch the GUI build inside the managed prefix.
@@ -70,7 +70,7 @@ make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -
 
 ## Live status sidechannel
 
-Run `nettts_gui.exe --runserver` to expose two TCP listeners:
+Run `nettts_gui.exe --runserver` (or press **Start server** in the GUI) to expose two TCP listeners while the server is running:
 
 - The existing command socket on `--port` (default `5555`).
 - A lightweight status socket on `--status-port` (defaults to `--port+1`, so `5556`).
@@ -79,6 +79,8 @@ The status socket accepts long-lived clients and pushes a single line per high-l
 
 - `START\n` is sent when speech begins (on `WM_APP_TTS_TEXT_START`).
 - `STOP\n` is sent when playback drains (on `WM_APP_TTS_AUDIO_DONE`).
+
+The status socket has no banner; connecting while the TCP server is stopped yields a refusal, and connecting while idle will sit quiet until the first `START`/`STOP` event fires.
 
 It's designed for background-music ducking or capture automation. For example, the OBS meme daemon can subscribe on `127.0.0.1:5556`, mute/attenuate BGM on `START`, and restore it on `STOP`. A minimal consumer looks like:
 
@@ -90,7 +92,6 @@ nc 127.0.0.1 5556 | while read -r line; do
   esac
 done
 ```
-
 
 Thanks to valve software as well for making some fucking incredible games.
 
