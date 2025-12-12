@@ -260,7 +260,7 @@ start_daemon() {
         *) warn "Unknown VOX_MODE '$VOX_MODE'; leaving VOX disabled" ;;
         esac
 
-        local launch_mode=${NETTTS_LAUNCH_MODE:-direct}
+        local launch_mode=${NETTTS_LAUNCH_MODE:-desktop}
         local cmd desktop_name desktop_size
         case "$launch_mode" in
         desktop)
