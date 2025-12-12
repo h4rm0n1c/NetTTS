@@ -301,7 +301,27 @@ void server_stop(){
 }
 
 bool status_server_start(const std::wstring& host, int port){
-    if (g_status_thread) return true;
+    if (g_status_thread){
+        DWORD wait_result = WaitForSingleObject(g_status_thread, 0);
+        if (wait_result == WAIT_TIMEOUT){
+            if (status_server_is_running()){
+                return true; // already running
+            }
+
+            // Thread handle is alive but not reporting a running server; try to stop it.
+            dprintf("[status] stale status thread detected; restarting");
+            g_status_stop = 1;
+            if(g_status_listen!=INVALID_SOCKET){ shutdown(g_status_listen, SD_BOTH); }
+            WaitForSingleObject(g_status_thread, 2000);
+        } else if (status_server_is_running()){
+            return true; // thread completed but server still marked running (should be rare)
+        }
+
+        CloseHandle(g_status_thread);
+        g_status_thread = nullptr;
+    } else if (status_server_is_running()){
+        return true;
+    }
     if (!g_status_cs_init){ InitializeCriticalSection(&g_status_cs); g_status_cs_init = true; }
     g_status_stop = 0; g_status_host = host; g_status_port = port;
     g_status_thread = CreateThread(nullptr,0,status_server_thread,nullptr,0,nullptr);
