@@ -171,12 +171,13 @@ start_daemon() {
 
         local args=("$NETTTS_EXE" --startserver --host "$HOST" --port "$PORT" --vox "$VOX_MODE" --device "$DEVICE")
 
-        # Match the GUI launch as closely as possible by default: run the EXE
-        # directly. Optional modes: NETTTS_LAUNCH_MODE=start (use `start /min` to
-        # request a minimized window) or NETTTS_LAUNCH_MODE=desktop (Wine virtual
-        # desktop). The minimized path mirrors `wine start /min "" ...` without
-        # adding extra flags that have caused instability.
-        local launch_mode=${NETTTS_LAUNCH_MODE:-direct}
+# Prefer a Wine virtual desktop by default (NETTTS_LAUNCH_MODE=desktop)
+# because it has been reliable on the target environment. Optional modes:
+# NETTTS_LAUNCH_MODE=start (use `start /min` to request a minimized
+# window) or NETTTS_LAUNCH_MODE=direct (run the EXE directly like the GUI
+# launcher). The minimized path mirrors `wine start /min "" ...` without
+# adding extra flags that have caused instability.
+local launch_mode=${NETTTS_LAUNCH_MODE:-desktop}
         local wine_start
 
         case "$launch_mode" in
