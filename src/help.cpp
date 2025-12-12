@@ -1,6 +1,43 @@
 #include "help.hpp"
 #include <windows.h>
+#include <mmsystem.h>
 #include <string>
+
+namespace {
+
+std::wstring build_device_mapping_text(){
+    std::wstring map;
+    map += L"Device index mapping (use with --devnum):\r\n";
+    map += L"  -1 : (Default output device)\r\n";
+
+    const UINT ndev = waveOutGetNumDevs();
+    if (ndev == 0) {
+        map += L"  (No output devices found)\r\n";
+        return map;
+    }
+
+    for (UINT di = 0; di < ndev; ++di){
+        WAVEOUTCAPSW caps{};
+        if (waveOutGetDevCapsW(di, &caps, sizeof(caps)) == MMSYSERR_NOERROR){
+            wchar_t line[512]; _snwprintf(line, 511, L"  %u : %ls\r\n", di, caps.szPname);
+            map += line;
+        }
+    }
+    return map;
+}
+
+std::wstring g_device_mapping_text;
+bool g_device_mapping_ready = false;
+
+} // namespace
+
+std::wstring get_device_mapping_text(){
+    if (!g_device_mapping_ready){
+        g_device_mapping_text = build_device_mapping_text();
+        g_device_mapping_ready = true;
+    }
+    return g_device_mapping_text;
+}
 
 // ---- help text ----
 std::wstring get_help_text_w(){ // central source of truth
@@ -54,6 +91,9 @@ std::wstring get_help_text_w(){ // central source of truth
     for (const wchar_t** p = lines; *p; ++p){
         out += *p; out += L"\r\n";
     }
+
+    out += L"\r\n";
+    out += get_device_mapping_text();
     return out;
 }
 
