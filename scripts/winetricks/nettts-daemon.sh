@@ -172,6 +172,15 @@ check_executable() {
 ensure_alsa_fallback() {
         local pipewire_paths=()
         local host_multiarch
+        local prefix_arch=${WINEARCH:-unknown}
+
+        if [[ $prefix_arch == unknown && -f "$WINEPREFIX/system.reg" ]]; then
+                if grep -q '^#arch=win64' "$WINEPREFIX/system.reg"; then
+                        prefix_arch=win64
+                else
+                        prefix_arch=win32
+                fi
+        fi
 
         host_multiarch=$(gcc -print-multiarch 2>/dev/null || true)
         if [[ -n $host_multiarch ]]; then
@@ -181,19 +190,31 @@ ensure_alsa_fallback() {
         pipewire_paths+=(
                 "/usr/lib/alsa-lib/libasound_module_pcm_pipewire.so"
                 "/usr/lib/i386-linux-gnu/alsa-lib/libasound_module_pcm_pipewire.so"
+                "/usr/lib/i686-linux-gnu/alsa-lib/libasound_module_pcm_pipewire.so"
         )
 
-        local shim_found=false
+        local shim_found_any=false
+        local shim_found_32=false
+
         for candidate in "${pipewire_paths[@]}"; do
                 if [[ -f "$candidate" ]]; then
-                        shim_found=true
-                        break
+                        shim_found_any=true
+                        if [[ $candidate == *i386-linux-gnu* || $candidate == *i686-linux-gnu* ]]; then
+                                shim_found_32=true
+                        fi
                 fi
         done
 
+        local shim_needed=true
+        if [[ $prefix_arch == win32 ]]; then
+                shim_needed=$shim_found_32
+        else
+                shim_needed=$shim_found_any
+        fi
+
         # Respect any user-provided ALSA overrides and only intervene when the
         # PipeWire ALSA shim is missing (common in minimal service setups).
-        if [[ -n ${ALSA_CONFIG_PATH:-} || $shim_found == true ]]; then
+        if [[ -n ${ALSA_CONFIG_PATH:-} || $shim_needed == true ]]; then
                 return
         fi
 
