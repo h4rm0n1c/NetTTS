@@ -244,7 +244,9 @@ start_daemon() {
         desktop)
                 local desktop_name=${NETTTS_DESKTOP_NAME:-NetTTS-Desktop}
                 local desktop_size=${NETTTS_DESKTOP_SIZE:-640x480}
-                cmd=("$WINE_CMD" cmd /c start /min "" explorer "/desktop=${desktop_name},${desktop_size}" "${base_cmd[@]}")
+                # /b keeps cmd from opening a console window, /wait preserves the PID so stop works, /min keeps
+                # the desktop minimized by default.
+                cmd=("$WINE_CMD" cmd /c start /wait /min /b "" explorer "/desktop=${desktop_name},${desktop_size}" "${base_cmd[@]}")
                 ;;
         direct|"")
                 cmd=("$WINE_CMD" "${base_cmd[@]}")
