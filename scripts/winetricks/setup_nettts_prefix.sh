@@ -12,7 +12,7 @@ DEFAULT_HELPER_REF="main"
 DEFAULT_DAEMON_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts-daemon.sh"
 DEFAULT_GUI_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts-gui.sh"
 DEFAULT_FLEXCTL_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/flextalk-controlpanel.sh"
-DEFAULT_VOX_REG_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/flextalk-vox-keith-bell.reg"
+DEFAULT_VOX_REG_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts_flextalk_vox_profile.reg"
 DEFAULT_ROOT_DIR="$HOME/nettts"
 
 usage() {
@@ -198,7 +198,7 @@ if [[ -z "$FLEXCTL_URL" ]]; then
 fi
 
 if [[ -z "$VOX_REG_URL" ]]; then
-        VOX_REG_URL=$(helper_url_for_ref "$HELPER_REF" "scripts/winetricks/flextalk-vox-keith-bell.reg")
+        VOX_REG_URL=$(helper_url_for_ref "$HELPER_REF" "scripts/winetricks/nettts_flextalk_vox_profile.reg")
 fi
 
 mkdir -p "$ROOT_DIR"
@@ -206,6 +206,14 @@ ROOT_DIR=$(cd "$ROOT_DIR" && pwd -P)
 if (( ! WINEPREFIX_OVERRIDE )); then
         WINEPREFIX="$ROOT_DIR/wineprefix"
 fi
+
+BASE_DIR="$ROOT_DIR"
+BIN_DIR="$BASE_DIR/bin"
+CONFIG_DIR="$BASE_DIR/etc"
+RUN_DIR="$BASE_DIR/run"
+CONFIG_FILE="$CONFIG_DIR/nettts-daemon.conf"
+
+mkdir -p "$BIN_DIR" "$CONFIG_DIR" "$RUN_DIR"
 
 require_cmd "$WINE_BIN"
 require_cmd winetricks
@@ -307,24 +315,34 @@ else
         warn "FlexTalk not detected at $FLEXTALK_INSTALL_WIN; confirm the GUI install completed successfully."
 fi
 
-VOX_REG_PATH="$TMPDIR/flextalk-vox-keith-bell.reg"
-printf '[INFO] Preparing FlexTalk Valve VOX profile from %s (ref: %s)\n' "$VOX_REG_URL" "$HELPER_REF"
-download_payload "$VOX_REG_URL" "$VOX_REG_PATH" "FlexTalk Valve VOX profile"
-VOX_REG_WIN_PATH=$(winepath -w "$VOX_REG_PATH")
+VOX_REG_PATH="$CONFIG_DIR/nettts_flextalk_vox_profile.reg"
+printf '[INFO] Preparing FlexTalk VOX profile from %s (ref: %s)\n' "$VOX_REG_URL" "$HELPER_REF"
+download_payload "$VOX_REG_URL" "$VOX_REG_PATH" "FlexTalk VOX profile"
 
+if ! grep -q 'HKEY_CURRENT_USER\\\\Software\\\\AT&T\\\\Watson\\\\2.0\\\\FlexTalk\\\\2.0' "$VOX_REG_PATH"; then
+        error "FlexTalk VOX profile did not contain expected registry keys: $VOX_REG_PATH"
+fi
+
+VOX_BACKUP=${VOX_BACKUP:-1}
+if [[ "$VOX_BACKUP" != "0" ]]; then
+        TS=$(date +%Y%m%d-%H%M%S)
+        VOX_BACKUP_PATH="$CONFIG_DIR/flextalk_hkcu_backup_${TS}.reg"
+        printf '[INFO] Backing up current FlexTalk HKCU keys to %s\n' "$VOX_BACKUP_PATH"
+        "$WINE_BIN" regedit /E "$(winepath -w "$VOX_BACKUP_PATH")" "HKEY_CURRENT_USER\\\\Software\\\\AT&T\\\\Watson\\\\2.0\\\\FlexTalk\\\\2.0" >/dev/null 2>&1 || true
+fi
+
+VOX_REG_WIN_PATH=$(winepath -w "$VOX_REG_PATH")
 VOX_SPEAKER_KEY='Software\\AT&T\\Watson\\2.0\\FlexTalk\\2.0\\Speakers\\{11260610-C84A-11CE-AEC4-0000C0E9CB87}'
-printf '[INFO] Importing Valve VOX voice profile into registry...\n'
-if ! "$WINE_BIN" reg import "$VOX_REG_WIN_PATH" >/dev/null 2>&1; then
-        warn "reg import failed; retrying with regedit /S"
-        "$WINE_BIN" regedit /S "$VOX_REG_WIN_PATH" || warn "regedit could not import Valve VOX profile"
+printf '[INFO] Importing VOX voice profile into registry...\n'
+if ! "$WINE_BIN" regedit /S "$VOX_REG_WIN_PATH"; then
+        warn "regedit /S could not import VOX profile"
 fi
 "$WINESERVER_BIN" -w || true
 
-if "$WINE_BIN" reg QUERY "HKLM\\$VOX_SPEAKER_KEY" >/dev/null 2>&1 && \
-   "$WINE_BIN" reg QUERY "HKCU\\$VOX_SPEAKER_KEY" >/dev/null 2>&1; then
-        printf '[INFO] FlexTalk Valve VOX settings imported.\n'
+if "$WINE_BIN" reg QUERY "HKCU\\$VOX_SPEAKER_KEY" >/dev/null 2>&1; then
+        printf '[INFO] FlexTalk VOX settings imported.\n'
 else
-        error "FlexTalk Valve VOX registry keys not present after import; check Wine prefix and rerun."
+        error "FlexTalk VOX registry keys not present after import; check Wine prefix and rerun."
 fi
 
 NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
@@ -403,14 +421,6 @@ if (( SHORTCUT_CREATED )); then
 else
         SHORTCUT_STATUS='not created; see warnings above'
 fi
-
-BASE_DIR="$ROOT_DIR"
-BIN_DIR="$BASE_DIR/bin"
-CONFIG_DIR="$BASE_DIR/etc"
-RUN_DIR="$BASE_DIR/run"
-CONFIG_FILE="$CONFIG_DIR/nettts-daemon.conf"
-
-mkdir -p "$BIN_DIR" "$CONFIG_DIR" "$RUN_DIR"
 
 SSN_BRIDGE_TARGET="$BIN_DIR/ssn_nettts_bridge.py"
 printf '[INFO] Preparing Social Stream Ninja bridge from %s (ref: %s)\n' "$SSN_BRIDGE_URL" "$SSN_BRIDGE_REF"
