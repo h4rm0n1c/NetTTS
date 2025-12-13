@@ -20,11 +20,20 @@ PREFIX       = "/rate 99 "
 MAX_LEN      = 200
 
 # Only do TTS for these usernames (case-insensitive, from chatname)
-# Leave empty set() to speak everyone.
+# Leave empty set() to speak everyone. Entries are lowercased automatically.
 ALLOWED_USERS = {
      "User1",
      "User2",
 }
+
+# Normalized lowercase copy for membership checks
+def normalize_name(name: str) -> str:
+    base = (name or "").strip().lstrip("@")
+    base = re.sub(r"\s*\([^)]*\)$", "", base)  # strip trailing platform tag e.g. " (Twitch)"
+    return base.lower()
+
+
+ALLOWED_USERS_LOWER = {normalize_name(u) for u in ALLOWED_USERS} if ALLOWED_USERS else set()
 
 # HTTP listener
 LISTEN_HOST  = "127.0.0.1"
@@ -102,9 +111,9 @@ def handle_event(event: Any) -> None:
         return
 
     # Username whitelist, if configured
-    if ALLOWED_USERS:
-        name_norm = (name or "").strip().lower()
-        if name_norm not in ALLOWED_USERS:
+    if ALLOWED_USERS_LOWER:
+        name_norm = normalize_name(name)
+        if name_norm not in ALLOWED_USERS_LOWER:
             print(f"[FILTER] ignoring user '{name}' (not in ALLOWED_USERS)", file=sys.stderr)
             return
 
