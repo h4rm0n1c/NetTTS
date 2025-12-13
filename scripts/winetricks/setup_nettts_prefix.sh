@@ -198,7 +198,7 @@ if [[ -z "$FLEXCTL_URL" ]]; then
 fi
 
 if [[ -z "$VOX_REG_URL" ]]; then
-        VOX_REG_URL=$(helper_url_for_ref "$HELPER_REF" "scripts/winetricks/flextalk-vox-keith-bell.reg")
+        VOX_REG_URL=$(helper_url_for_ref "$HELPER_REF" "scripts/winetricks/nettts_flextalk_vox_profile.reg")
 fi
 
 mkdir -p "$ROOT_DIR"
@@ -307,7 +307,7 @@ else
         warn "FlexTalk not detected at $FLEXTALK_INSTALL_WIN; confirm the GUI install completed successfully."
 fi
 
-VOX_REG_PATH="$TMPDIR/flextalk-vox-keith-bell.reg"
+VOX_REG_PATH="$TMPDIR/nettts_flextalk_vox_profile.reg"
 printf '[INFO] Preparing FlexTalk Valve VOX profile from %s (ref: %s)\n' "$VOX_REG_URL" "$HELPER_REF"
 download_payload "$VOX_REG_URL" "$VOX_REG_PATH" "FlexTalk Valve VOX profile"
 VOX_REG_WIN_PATH=$(winepath -w "$VOX_REG_PATH")
