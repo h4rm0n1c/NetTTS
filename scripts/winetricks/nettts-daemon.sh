@@ -35,7 +35,6 @@ NC_BIN=${NETTTS_NC_BIN:-nc}
 NC_TIMEOUT=${NETTTS_NC_TIMEOUT:-3}
 CONFIG_DIR="$BASE_DIR/etc"
 CONFIG_FILE="$CONFIG_DIR/nettts-daemon.conf"
-DEVICES_FILE="$CONFIG_DIR/nettts-devices.txt"
 RUN_DIR="$BASE_DIR/run"
 PID_FILE="$RUN_DIR/nettts-daemon.pid"
 NETTTS_EXE="$WINEPREFIX/drive_c/nettts/nettts_gui.exe"
@@ -51,7 +50,7 @@ Commands:
   restart           Stop and then start the daemon
   status            Print whether the daemon is running (exit 0 if running)
   speak <text>      Send text to the TCP server via netcat (or pipe stdin)
-  list-devices      Refresh and print the captured audio device list
+  list-devices      Enumerate devices on demand and print the results to the console
   show-config       Display the service configuration file
   config-path       Print the configuration file path
   log-path          Print the daemon log file path
@@ -198,12 +197,10 @@ wine_debug_value() {
         fi
 }
 
-update_device_list() {
+show_device_list() {
         ensure_config
         check_executable
         require_cmd "$WINE_CMD"
-
-        mkdir -p "$CONFIG_DIR"
 
         local wine_debug status
         wine_debug=$(wine_debug_value)
@@ -215,18 +212,11 @@ update_device_list() {
 
         status=$?
 
-        if [[ ! -s "$DEVICES_FILE" ]]; then
-                warn "NetTTS produced no output for --console --list-devices; see $DEVICES_FILE"
-                return "$status"
+        if [[ "$status" -ne 0 ]]; then
+                warn "Device enumeration failed (exit $status)"
         fi
 
-        if [[ "$status" -eq 0 ]]; then
-                log "Captured device list at $DEVICES_FILE"
-                return 0
-        else
-                warn "Device enumeration failed (exit $status); see $DEVICES_FILE"
-                return 1
-        fi
+        return "$status"
 }
 
 start_instance() {
@@ -247,7 +237,6 @@ start_instance() {
         fi
         load_config
         resolve_vox_mode
-        update_device_list || true
 
         # GUI builds keep the window and avoid console attachment; headless uses
         # --headlessnoconsole to suppress Wine's console allocation as well.
@@ -349,7 +338,7 @@ main() {
         status) status_daemon ;;
         speak) speak_command "$@" ;;
         list-devices)
-                update_device_list
+                show_device_list
                 ;;
 
         show-config)
