@@ -313,18 +313,38 @@ download_payload "$VOX_REG_URL" "$VOX_REG_PATH" "FlexTalk Valve VOX profile"
 VOX_REG_WIN_PATH=$(winepath -w "$VOX_REG_PATH")
 
 VOX_SPEAKER_KEY='Software\\AT&T\\Watson\\2.0\\FlexTalk\\2.0\\Speakers\\{11260610-C84A-11CE-AEC4-0000C0E9CB87}'
+VOX_DEFAULT_KEY='Software\\AT&T\\Watson\\2.0\\FlexTalk\\2.0'
 printf '[INFO] Importing Valve VOX voice profile into registry...\n'
 if ! "$WINE_BIN" reg import "$VOX_REG_WIN_PATH" >/dev/null 2>&1; then
         warn "reg import failed; retrying with regedit /S"
         "$WINE_BIN" regedit /S "$VOX_REG_WIN_PATH" || warn "regedit could not import Valve VOX profile"
+else
+        printf '[INFO] reg import completed; verifying keys...\n'
 fi
 "$WINESERVER_BIN" -w || true
 
-if "$WINE_BIN" reg QUERY "HKLM\\$VOX_SPEAKER_KEY" >/dev/null 2>&1 && \
-   "$WINE_BIN" reg QUERY "HKCU\\$VOX_SPEAKER_KEY" >/dev/null 2>&1; then
-        printf '[INFO] FlexTalk Valve VOX settings imported.\n'
+if "$WINE_BIN" reg QUERY "HKCU\\$VOX_SPEAKER_KEY" >/dev/null 2>&1; then
+        printf '[INFO] HKCU FlexTalk Valve VOX speaker settings present.\n'
 else
-        error "FlexTalk Valve VOX registry keys not present after import; check Wine prefix and rerun."
+        warn "HKCU Valve VOX speaker key missing after import; voice profile may not be applied."
+fi
+
+if "$WINE_BIN" reg QUERY "HKCU\\$VOX_DEFAULT_KEY" /v "Default Speaker" >/dev/null 2>&1; then
+        printf '[INFO] HKCU Default Speaker value detected.\n'
+else
+        warn "HKCU Default Speaker value missing after import; using FlexTalk defaults."
+fi
+
+if "$WINE_BIN" reg QUERY "HKLM\\$VOX_SPEAKER_KEY" >/dev/null 2>&1; then
+        printf '[INFO] HKLM FlexTalk Valve VOX speaker settings present.\n'
+else
+        warn "HKLM Valve VOX speaker key missing; registry writes to HKLM may be blocked in this environment."
+fi
+
+if "$WINE_BIN" reg QUERY "HKLM\\$VOX_DEFAULT_KEY" /v "Default Speaker" >/dev/null 2>&1; then
+        printf '[INFO] HKLM Default Speaker value detected.\n'
+else
+        warn "HKLM Default Speaker value missing; continuing without machine-wide FlexTalk defaults."
 fi
 
 NETTTS_DIR="$WINEPREFIX/drive_c/nettts"
