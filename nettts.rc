@@ -4,7 +4,7 @@
 #endif
 
 #define APP_PRODUCT_NAME     "NetTTS"
-#define APP_VERSION_TAG      "0.95f (Freeware Deluxe Edition)"
+#define APP_VERSION_TAG      "1.0 (Release - Open Source - WTFPL License)"
 #define APP_VERSION_DISPLAY  "Version " APP_VERSION_TAG
 #define APP_AUTHOR_NAME      "h4rm0n1c"
 #define APP_COPYRIGHT_TEXT   "\xa9 " APP_AUTHOR_NAME
@@ -136,10 +136,10 @@ BEGIN
 END
 
 // ---- Version Information (Details tab metadata) ------------------
-// Encode the retro "0.95f" tag as 0,0,95,6 so the numeric file version stays valid.
+// Encode the friendly "1.0" tag as 1,0,0,0 so the numeric file version stays valid.
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,0,95,6
- PRODUCTVERSION 0,0,95,6
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
