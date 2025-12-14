@@ -4,7 +4,7 @@
 #endif
 
 #define APP_PRODUCT_NAME     "NetTTS"
-#define APP_VERSION_TAG      "1.0 (Release)"
+#define APP_VERSION_TAG      "1.0 (Release - Open Source - WTFPL License)"
 #define APP_VERSION_DISPLAY  "Version " APP_VERSION_TAG
 #define APP_AUTHOR_NAME      "h4rm0n1c"
 #define APP_COPYRIGHT_TEXT   "\xa9 " APP_AUTHOR_NAME
