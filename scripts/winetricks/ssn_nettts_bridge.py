@@ -13,8 +13,8 @@ NETTTS_HOST  = "127.0.0.1"
 NETTTS_PORT  = 5555          # change if your NetTTS listener uses a different port
 
 # Optional prefix tags for every spoken line
-# Example: PREFIX = "/rate 0 /pitch 0 "
-PREFIX       = "/rate 99 "
+# Example: PREFIX = "/rate 0\n/pitch 0\n"
+PREFIX       = "/rate 99\n"
 
 # Hard cap on message length so nobody can make you read a novel
 MAX_LEN      = 200
@@ -56,7 +56,7 @@ def send_to_nettts(text: str) -> None:
     if len(line) > MAX_LEN:
         line = line[:MAX_LEN] + "…"
 
-    payload = PREFIX + line + "\n"
+    payload = f"{PREFIX}{line}\n"
 
     try:
         with socket.create_connection((NETTTS_HOST, NETTTS_PORT), timeout=2) as s:
