@@ -1,6 +1,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <mstcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 
 #include "log.hpp"
@@ -97,6 +98,24 @@ static bool parse_ipv4(const std::string& host, in_addr* out)
 // ---- server state ----
 static std::atomic<bool> g_server_running{false};
 static std::atomic<bool> g_status_running{false};
+
+static void configure_keepalive(SOCKET sock)
+{
+    if (sock == INVALID_SOCKET) {
+        return;
+    }
+
+    BOOL enabled = TRUE;
+    setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<const char*>(&enabled), sizeof(enabled));
+
+    tcp_keepalive params{};
+    params.onoff = 1;
+    params.keepalivetime = 10 * 1000;       // milliseconds before first probe
+    params.keepaliveinterval = 3 * 1000;    // milliseconds between probes
+
+    DWORD bytes = 0;
+    WSAIoctl(sock, SIO_KEEPALIVE_VALS, &params, sizeof(params), nullptr, 0, &bytes, nullptr, nullptr);
+}
 
 // expose status to the rest of the app
 bool server_is_running(){
@@ -235,6 +254,7 @@ static DWORD WINAPI status_server_thread(LPVOID){
     g_status_running.store(true, std::memory_order_release);
     dprintf("[status] listening on %s:%d", hostA.c_str(), g_status_port);
 
+    DWORD last_ping = GetTickCount();
     while(!g_status_stop){
         fd_set rf; FD_ZERO(&rf); FD_SET(g_status_listen, &rf);
         {
@@ -246,12 +266,20 @@ static DWORD WINAPI status_server_thread(LPVOID){
         }
         timeval tv{0, 200*1000};
         int r = select(0, &rf, nullptr, nullptr, &tv);
+
+        DWORD now = GetTickCount();
+        if (now - last_ping >= 5000){
+            status_server_broadcast("PING\n", 5);
+            last_ping = now;
+        }
+
         if(r<=0){ continue; }
 
         if(FD_ISSET(g_status_listen, &rf)){
             sockaddr_in cli; int clen=sizeof(cli);
             SOCKET s = accept(g_status_listen,(sockaddr*)&cli,&clen);
             if(s!=INVALID_SOCKET){
+                configure_keepalive(s);
                 if (g_status_cs_init) EnterCriticalSection(&g_status_cs);
                 g_status_clients.push_back(s);
                 if (g_status_cs_init) LeaveCriticalSection(&g_status_cs);
