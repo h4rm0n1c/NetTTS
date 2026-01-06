@@ -87,6 +87,22 @@ The status socket accepts long-lived clients and pushes a single line per high-l
 - `START\n` is sent when speech begins (on `WM_APP_TTS_TEXT_START`).
 - `STOP\n` is sent when playback drains (on `WM_APP_TTS_AUDIO_DONE`).
 
+### One-shot TCP commands without hanging netcat
+
+The command socket keeps connections open so multiple utterances can be sent over a single session. Plain `nc 127.0.0.1 5555` will therefore sit idle after it writes your text, waiting for the server to close and forcing you to hit <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+
+To fire a single line and exit cleanly, ask netcat to close after stdin drains:
+
+```bash
+printf 'Hello World From Net TTS NetCat TCP Server!\n' | nc -q 0 127.0.0.1 5555
+```
+
+Most BSD-derived `nc` builds also support `-N` for the same effect:
+
+```bash
+printf 'Message for Gordon Freeman, you will not escape this time.\n' | nc -N 127.0.0.1 5555
+```
+
 The status socket has no banner; connecting while the TCP server is stopped yields a refusal, and connecting while idle will sit quiet until the first `START`/`STOP` event fires.
 
 It's designed for background-music ducking or capture automation. For example, the OBS meme daemon can subscribe on `127.0.0.1:5556`, mute/attenuate BGM on `START`, and restore it on `STOP`. A minimal consumer looks like:
