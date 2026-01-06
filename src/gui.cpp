@@ -179,8 +179,9 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
                 // gather text, post WM_APP_SPEAK with std::string*
                 int n = GetWindowTextLengthW(GetDlgItem(hDlg, IDC_EDIT_TEXT));
                 if (n > 0){
-                    std::wstring w(n, L'\0');
-                    GetDlgItemTextW(hDlg, IDC_EDIT_TEXT, &w[0], n+1);
+                    std::wstring w(n + 1, L'\0');
+                    int read = GetDlgItemTextW(hDlg, IDC_EDIT_TEXT, &w[0], (int)w.size());
+                    w.resize(read);
                     int m = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
                     std::string u8(m, '\0');
                     WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), u8.data(), m, nullptr, nullptr);
