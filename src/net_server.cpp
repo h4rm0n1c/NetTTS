@@ -178,6 +178,7 @@ static DWORD WINAPI server_thread(LPVOID){
         sockaddr_in cli; int clen=sizeof(cli);
         SOCKET s = accept(g_listen,(sockaddr*)&cli,&clen);
         if(s==INVALID_SOCKET) continue;
+        configure_keepalive(s);
         dprintf("[net] client connected");
 
         std::string buf; buf.reserve(1024);
