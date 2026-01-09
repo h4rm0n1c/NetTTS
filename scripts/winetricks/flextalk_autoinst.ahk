@@ -1,0 +1,6 @@
+WinWait Welcome
+ControlClick Button1
+WinWait Software License Agreement
+ControlClick Button2
+WinWait Choose Destination Location
+ControlClick Button1

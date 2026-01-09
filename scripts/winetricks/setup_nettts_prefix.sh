@@ -263,8 +263,8 @@ mkdir -p "$WINEPREFIX"
 
 printf '\n[INFO] Preparing Wine prefix at %s\n' "$WINEPREFIX"
 
-printf '[INFO] Installing winxp, vcrun6, mfc42, and riched20 via winetricks...\n'
-winetricks -q winxp vcrun6 mfc42 riched20
+printf '[INFO] Installing winxp, vcrun6, mfc42, riched20 and autohotkey via winetricks...\n'
+winetricks -q winxp vcrun6 mfc42 riched20 autohotkey
 
 SAPI_INSTALLER="$TMPDIR/sapi4_runtime.exe"
 download_payload "$SAPI_URL" "$SAPI_INSTALLER" "SAPI runtime"
@@ -286,8 +286,15 @@ FLEXTALK_INSTALL_WIN='C:\\Program Files\\Watson21'
 printf '[INFO] FlexTalk target directory (default): %s\n' "$FLEXTALK_INSTALL_WIN"
 
 printf '[INFO] Launching FlexTalk installer with GUI...\n'
-printf '[INFO] Complete the FlexTalk setup manually; this script will continue afterwards.\n'
+printf '[INFO] Using an AutoHotKey script to automate setup. You may have to click through the installer yourself; this script will continue afterwards.\n'
+
+# From https://stackoverflow.com/a/246128
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 pushd "$FLEXTALK_SETUP_DIR" >/dev/null
+
+"$WINE_BIN" cmd /c start $(winepath -w $(realpath "$SCRIPT_DIR/flextalk_autoinst.ahk"))
+
 if ! "$WINE_BIN" "$FLEXTALK_SETUP_EXE"; then
         status=$?
         warn "FlexTalk installer exited with status $status"
