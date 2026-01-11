@@ -306,11 +306,13 @@ start_guiserver() {
 
 stop_daemon() {
         local pid
+        local was_running=false
         pid=$(read_pid) || {
                 warn "No PID file present; daemon not running?"
                 return 0
         }
         if kill -0 -"$pid" >/dev/null 2>&1; then
+                was_running=true
                 kill -- -"$pid" >/dev/null 2>&1 || true
                 for _ in {1..10}; do
                         if ! kill -0 -"$pid" >/dev/null 2>&1; then
@@ -326,7 +328,9 @@ stop_daemon() {
                 warn "Stale PID file for process $pid"
         fi
         rm -f "$PID_FILE"
-        wait_for_wineserver || true
+        if [[ "$was_running" == true ]]; then
+                wait_for_wineserver || true
+        fi
         log "NetTTS daemon stopped"
 }
 
