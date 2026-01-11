@@ -33,6 +33,7 @@ fi
 LOG_FILE=${NETTTS_LOG_FILE:-/home/harri/nettts/etc/nettts.log}
 NC_BIN=${NETTTS_NC_BIN:-nc}
 NC_TIMEOUT=${NETTTS_NC_TIMEOUT:-3}
+WINESERVER_WAIT=${NETTTS_WINESERVER_WAIT:-5}
 CONFIG_DIR="$BASE_DIR/etc"
 CONFIG_FILE="$CONFIG_DIR/nettts-daemon.conf"
 RUN_DIR="$BASE_DIR/run"
@@ -165,6 +166,36 @@ ensure_log_file() {
         fi
 }
 
+wait_for_wineserver() {
+        local wait_seconds
+        wait_seconds=$(trim "$WINESERVER_WAIT")
+        if [[ -z "$wait_seconds" || "$wait_seconds" == "0" ]]; then
+                return 0
+        fi
+        if ! [[ "$wait_seconds" =~ ^[0-9]+$ ]]; then
+                warn "Invalid NETTTS_WINESERVER_WAIT '$WINESERVER_WAIT'; defaulting to 5 seconds"
+                wait_seconds=5
+        fi
+        if command -v timeout >/dev/null 2>&1; then
+                if ! timeout "$wait_seconds" "$WINESERVER_CMD" -w >/dev/null 2>&1; then
+                        warn "Timed out waiting for wineserver to exit (waited ${wait_seconds}s)"
+                fi
+                return 0
+        fi
+        "$WINESERVER_CMD" -w >/dev/null 2>&1 &
+        local wait_pid=$!
+        local start=$SECONDS
+        while kill -0 "$wait_pid" >/dev/null 2>&1; do
+                if ((SECONDS - start >= wait_seconds)); then
+                        warn "Timed out waiting for wineserver to exit (waited ${wait_seconds}s)"
+                        kill "$wait_pid" >/dev/null 2>&1 || true
+                        break
+                fi
+                sleep 1
+        done
+        wait "$wait_pid" >/dev/null 2>&1 || true
+}
+
 check_executable() {
         [[ -f "$NETTTS_EXE" ]] || error "NetTTS executable not found at $NETTTS_EXE"
 }
@@ -275,11 +306,13 @@ start_guiserver() {
 
 stop_daemon() {
         local pid
+        local was_running=false
         pid=$(read_pid) || {
                 warn "No PID file present; daemon not running?"
                 return 0
         }
         if kill -0 -"$pid" >/dev/null 2>&1; then
+                was_running=true
                 kill -- -"$pid" >/dev/null 2>&1 || true
                 for _ in {1..10}; do
                         if ! kill -0 -"$pid" >/dev/null 2>&1; then
@@ -295,7 +328,9 @@ stop_daemon() {
                 warn "Stale PID file for process $pid"
         fi
         rm -f "$PID_FILE"
-        env "WINEPREFIX=$WINEPREFIX" "$WINESERVER_CMD" -w >/dev/null 2>&1 || true
+        if [[ "$was_running" == true ]]; then
+                wait_for_wineserver || true
+        fi
         log "NetTTS daemon stopped"
 }
 
