@@ -127,4 +127,4 @@ done
 
 Thanks to Valve for the games and to the classic Win32 UI era that inspired this project.
 
-AutoHotKey Automation by @zulc22
+AutoHotKey Automation by [@zulc22](https://github.com/zulc22)
