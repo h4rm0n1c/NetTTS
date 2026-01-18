@@ -8,9 +8,6 @@
   <img src="nettts_main_window.png" alt="NetTTS main window" width="720" />
 </p>
 
-<p align="center">
- 
-</p>
 
 NetTTS is a small Win32 GUI that wraps FlexTalk and other SAPI 4.0 voices. It’s meant to run on old Windows boxes, modern Windows, or Wine.
 
