@@ -11,12 +11,16 @@
 
 NetTTS is a small Win32 GUI that wraps FlexTalk and other SAPI 4.0 voices. It’s meant to run on old Windows boxes, modern Windows, or Wine.
 
-## Why it exists
+## Project Strengths
 
 - Works on retro Windows installs without a hunt for old DLLs.
 - Builds cleanly on Linux with MinGW-w64.
 - Bundles a known-good `speech.h` so headers don’t drift.
 - Matches the maintainer’s Devuan + Wine workflow.
+- Preserves the legacy of AT&T's Flextalk Engine in a public repository.
+- Preserves the legacy of Valve's game "Halflife" as this Engine was used for the "VOX"/Black Mesa Announcement System samples in the game.
+- Implements a unique prosody encoder system based on observations of the utility of valve's fictionally created VOX announcement system
+- Fun! :D
 
 ## Run the prebuilt binary
 
@@ -122,3 +126,5 @@ done
 ```
 
 Thanks to Valve for the games and to the classic Win32 UI era that inspired this project.
+
+AutoHotKey Automation by @zulc22
