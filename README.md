@@ -59,7 +59,9 @@ Defaults:
 - Prefix path: `~/nettts/wineprefix/`.
 - Logs: `~/nettts/wineprefix/drive_c/nettts/nettts.log`.
 
-The script uses winetricks (`winxp`, `vcrun6`, `mfc42`, `riched20`), downloads SAPI, FlexTalk, and the NetTTS zip, then wires up helper scripts. FlexTalk’s installer still runs interactively.
+The script uses winetricks (`winxp`, `vcrun6`, `mfc42`, `riched20`), downloads SAPI, FlexTalk, and the NetTTS zip, then wires up helper scripts.
+
+FlexTalk’s Installer will launch and complete installation on its own thanks to [@zulc22](https://github.com/zulc22)
 
 Helper scripts:
 
