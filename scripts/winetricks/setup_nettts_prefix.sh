@@ -293,7 +293,22 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 pushd "$FLEXTALK_SETUP_DIR" >/dev/null
 
-"$WINE_BIN" cmd /c start $(winepath -w $(realpath "$SCRIPT_DIR/flextalk_autoinst.ahk"))
+AHK_SCRIPT_PATH=$(realpath "$SCRIPT_DIR/flextalk_autoinst.ahk")
+AHK_SCRIPT_WIN_PATH=$(winepath -w "$AHK_SCRIPT_PATH")
+AHK_EXE_UNIX=""
+if [[ -f "$WINEPREFIX/drive_c/Program Files/AutoHotkey/AutoHotkey.exe" ]]; then
+        AHK_EXE_UNIX="$WINEPREFIX/drive_c/Program Files/AutoHotkey/AutoHotkey.exe"
+elif [[ -f "$WINEPREFIX/drive_c/Program Files (x86)/AutoHotkey/AutoHotkey.exe" ]]; then
+        AHK_EXE_UNIX="$WINEPREFIX/drive_c/Program Files (x86)/AutoHotkey/AutoHotkey.exe"
+fi
+
+if [[ -n "$AHK_EXE_UNIX" ]]; then
+        AHK_EXE_WIN_PATH=$(winepath -w "$AHK_EXE_UNIX")
+        "$WINE_BIN" "$AHK_EXE_WIN_PATH" "$AHK_SCRIPT_WIN_PATH"
+else
+        warn "AutoHotkey.exe not found; falling back to shell association."
+        "$WINE_BIN" cmd /c start "" "$AHK_SCRIPT_WIN_PATH"
+fi
 
 if ! "$WINE_BIN" "$FLEXTALK_SETUP_EXE"; then
         status=$?
