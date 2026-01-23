@@ -12,6 +12,7 @@ DEFAULT_HELPER_REF="main"
 DEFAULT_DAEMON_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts-daemon.sh"
 DEFAULT_GUI_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts-gui.sh"
 DEFAULT_FLEXCTL_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/flextalk-controlpanel.sh"
+DEFAULT_AHK_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/flextalk_autoinst.ahk"
 DEFAULT_VOX_REG_URL="https://raw.githubusercontent.com/h4rm0n1c/NetTTS/${DEFAULT_HELPER_REF}/scripts/winetricks/nettts_flextalk_vox_profile.reg"
 DEFAULT_ROOT_DIR="$HOME/nettts"
 
@@ -35,6 +36,7 @@ Options:
   --daemon-url <URL>    Override the NetTTS daemon helper download (default: $DEFAULT_DAEMON_URL)
   --gui-url <URL>       Override the NetTTS GUI helper download (default: $DEFAULT_GUI_URL)
   --flexctl-url <URL>   Override the FlexTalk control panel helper download (default: $DEFAULT_FLEXCTL_URL)
+  --ahk-url <URL>       Override the FlexTalk AutoHotkey script download (default: $DEFAULT_AHK_URL)
   --vox-reg-url <URL>   Override the FlexTalk Valve VOX registry profile (default: $DEFAULT_VOX_REG_URL)
   -h, --help            Show this help text
 USAGE
@@ -86,6 +88,7 @@ HELPER_REF="$DEFAULT_HELPER_REF"
 DAEMON_URL="$DEFAULT_DAEMON_URL"
 GUI_URL="$DEFAULT_GUI_URL"
 FLEXCTL_URL="$DEFAULT_FLEXCTL_URL"
+AHK_URL="$DEFAULT_AHK_URL"
 VOX_REG_URL="$DEFAULT_VOX_REG_URL"
 
 while [[ $# -gt 0 ]]; do
@@ -164,6 +167,11 @@ while [[ $# -gt 0 ]]; do
                 shift
                 [[ $# -gt 0 ]] || error "--flexctl-url requires a value"
                 FLEXCTL_URL=$1
+                ;;
+        --ahk-url)
+                shift
+                [[ $# -gt 0 ]] || error "--ahk-url requires a value"
+                AHK_URL=$1
                 ;;
         --vox-reg-url)
                 shift
@@ -293,7 +301,12 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 pushd "$FLEXTALK_SETUP_DIR" >/dev/null
 
-AHK_SCRIPT_PATH=$(realpath "$SCRIPT_DIR/flextalk_autoinst.ahk")
+AHK_SCRIPT_PATH="$SCRIPT_DIR/flextalk_autoinst.ahk"
+if [[ ! -f "$AHK_SCRIPT_PATH" ]]; then
+        AHK_SCRIPT_PATH="$TMPDIR/flextalk_autoinst.ahk"
+        download_payload "$AHK_URL" "$AHK_SCRIPT_PATH" "FlexTalk AutoHotkey script"
+fi
+AHK_SCRIPT_PATH=$(realpath "$AHK_SCRIPT_PATH")
 AHK_SCRIPT_WIN_PATH=$(winepath -w "$AHK_SCRIPT_PATH")
 AHK_EXE_UNIX=""
 if [[ -f "$WINEPREFIX/drive_c/Program Files/AutoHotkey/AutoHotkey.exe" ]]; then
