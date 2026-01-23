@@ -270,6 +270,8 @@ fi
 mkdir -p "$WINEPREFIX"
 
 printf '\n[INFO] Preparing Wine prefix at %s\n' "$WINEPREFIX"
+printf '[INFO] Using wine binary: %s\n' "$WINE_BIN"
+printf '[INFO] Using wineserver binary: %s\n' "$WINESERVER_BIN"
 
 printf '[INFO] Installing winxp, vcrun6, mfc42, riched20 and autohotkey via winetricks...\n'
 winetricks -q winxp vcrun6 mfc42 riched20 autohotkey
@@ -317,11 +319,13 @@ fi
 
 if [[ -n "$AHK_EXE_UNIX" ]]; then
         AHK_EXE_WIN_PATH=$(winepath -w "$AHK_EXE_UNIX")
-        "$WINE_BIN" "$AHK_EXE_WIN_PATH" "$AHK_SCRIPT_WIN_PATH"
+        "$WINE_BIN" cmd /c start "" "$AHK_EXE_WIN_PATH" "$AHK_SCRIPT_WIN_PATH"
 else
         warn "AutoHotkey.exe not found; falling back to shell association."
         "$WINE_BIN" cmd /c start "" "$AHK_SCRIPT_WIN_PATH"
 fi
+
+sleep 2
 
 if ! "$WINE_BIN" "$FLEXTALK_SETUP_EXE"; then
         status=$?
