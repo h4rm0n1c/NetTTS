@@ -260,6 +260,9 @@ start_instance() {
         ensure_log_file
         require_cmd "$WINE_CMD"
         require_cmd "$WINESERVER_CMD"
+        if [[ "${NETTTS_USE_XVFB:-}" == "true" ]]; then
+                require_cmd xvfb-run
+        fi
         if is_running; then
                 local current_pid
                 current_pid=$(read_pid) || current_pid="?"
@@ -287,6 +290,9 @@ start_instance() {
         log "Starting with VOX_MODE='$VOX_MODE' (flags: ${base_cmd[*]:-})"
 
         local cmd=("$WINE_CMD" "${base_cmd[@]}")
+        if [[ "${NETTTS_USE_XVFB:-}" == "true" ]]; then
+                cmd=(xvfb-run --auto-servernum --server-args="-screen 0 640x480x24" "${cmd[@]}")
+        fi
 
         local wine_debug
         wine_debug=$(wine_debug_value)
@@ -297,6 +303,9 @@ start_instance() {
 }
 
 start_daemon() {
+        if [[ -z "${DISPLAY:-}" ]]; then
+                export NETTTS_USE_XVFB=true
+        fi
         start_instance true "NetTTS daemon"
 }
 
