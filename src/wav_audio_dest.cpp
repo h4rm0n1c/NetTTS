@@ -1,0 +1,254 @@
+#include "wav_audio_dest.hpp"
+#include "log.hpp"
+#include <cstring>
+
+namespace {
+
+struct RiffHeader {
+    char riff[4];
+    DWORD riff_size;
+    char wave[4];
+    char fmt[4];
+    DWORD fmt_size;
+};
+
+struct DataHeader {
+    char data[4];
+    DWORD data_size;
+};
+
+WAVEFORMATEX default_format() {
+    WAVEFORMATEX wf{};
+    wf.wFormatTag = WAVE_FORMAT_PCM;
+    wf.nChannels = 1;
+    wf.nSamplesPerSec = 11025;
+    wf.wBitsPerSample = 16;
+    wf.nBlockAlign = (WORD)((wf.nChannels * wf.wBitsPerSample) / 8);
+    wf.nAvgBytesPerSec = wf.nSamplesPerSec * wf.nBlockAlign;
+    wf.cbSize = 0;
+    return wf;
+}
+
+DWORD format_size_from_data(SDATA data) {
+    if (!data.pData || data.dwSize < sizeof(WAVEFORMATEX)) {
+        return 0;
+    }
+    const WAVEFORMATEX* wf = static_cast<const WAVEFORMATEX*>(data.pData);
+    DWORD size = sizeof(WAVEFORMATEX);
+    if (data.dwSize >= sizeof(WAVEFORMATEX)) {
+        size += wf->cbSize;
+    }
+    if (size > data.dwSize) {
+        size = data.dwSize;
+    }
+    return size;
+}
+
+} // namespace
+
+HRESULT WavAudioDest::Create(const std::wstring& path, WavAudioDest** out) {
+    if (!out) return E_POINTER;
+    *out = nullptr;
+
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        dprintf("[wav] CreateFile failed path=%ls err=%lu", path.c_str(), GetLastError());
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    WavAudioDest* dest = new WavAudioDest(file);
+    HRESULT hr = dest->initialize(path);
+    if (FAILED(hr)) {
+        dest->Release();
+        return hr;
+    }
+    *out = dest;
+    return S_OK;
+}
+
+WavAudioDest::WavAudioDest(HANDLE file) : file_(file) {
+    WAVEFORMATEX wf = default_format();
+    const BYTE* begin = reinterpret_cast<const BYTE*>(&wf);
+    format_.assign(begin, begin + sizeof(WAVEFORMATEX));
+}
+
+WavAudioDest::~WavAudioDest() {
+    finalize_header();
+    if (file_ != INVALID_HANDLE_VALUE) {
+        CloseHandle(file_);
+        file_ = INVALID_HANDLE_VALUE;
+    }
+}
+
+HRESULT WavAudioDest::initialize(const std::wstring&) {
+    return finalize_header();
+}
+
+STDMETHODIMP WavAudioDest::QueryInterface(REFIID riid, LPVOID FAR* ppvObj) {
+    if (!ppvObj) return E_POINTER;
+    *ppvObj = nullptr;
+    if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IAudio)) {
+        *ppvObj = static_cast<IAudio*>(this);
+    } else if (IsEqualIID(riid, IID_IAudioDest)) {
+        *ppvObj = static_cast<IAudioDest*>(this);
+    } else {
+        return E_NOINTERFACE;
+    }
+    AddRef();
+    return S_OK;
+}
+
+STDMETHODIMP_(ULONG) WavAudioDest::AddRef() {
+    return InterlockedIncrement(&ref_count_);
+}
+
+STDMETHODIMP_(ULONG) WavAudioDest::Release() {
+    ULONG count = InterlockedDecrement(&ref_count_);
+    if (!count) delete this;
+    return count;
+}
+
+STDMETHODIMP WavAudioDest::Flush() {
+    return finalize_header();
+}
+
+STDMETHODIMP WavAudioDest::LevelGet(DWORD* level) {
+    if (!level) return E_POINTER;
+    *level = level_;
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::LevelSet(DWORD level) {
+    level_ = level;
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::PassNotify(PVOID, IID) {
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::PosnGet(PQWORD pos) {
+    if (!pos) return E_POINTER;
+    *pos = total_bytes_;
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::Claim() {
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::UnClaim() {
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::Start() {
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::Stop() {
+    return finalize_header();
+}
+
+STDMETHODIMP WavAudioDest::TotalGet(PQWORD total) {
+    if (!total) return E_POINTER;
+    *total = total_bytes_;
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::ToFileTime(PQWORD pos, FILETIME* ft) {
+    if (!pos || !ft) return E_POINTER;
+    ULARGE_INTEGER uli{};
+    uli.QuadPart = *pos;
+    ft->dwLowDateTime = uli.LowPart;
+    ft->dwHighDateTime = uli.HighPart;
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::WaveFormatGet(PSDATA data) {
+    if (!data) return E_POINTER;
+    void* copy = CoTaskMemAlloc(format_.size());
+    if (!copy) return E_OUTOFMEMORY;
+    std::memcpy(copy, format_.data(), format_.size());
+    data->pData = copy;
+    data->dwSize = (DWORD)format_.size();
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::WaveFormatSet(SDATA data) {
+    DWORD size = format_size_from_data(data);
+    if (!size) return E_INVALIDARG;
+    const BYTE* begin = static_cast<const BYTE*>(data.pData);
+    format_.assign(begin, begin + size);
+    return finalize_header();
+}
+
+STDMETHODIMP WavAudioDest::FreeSpace(DWORD* bytes, BOOL* eof) {
+    if (bytes) *bytes = 0x40000000u;
+    if (eof) *eof = FALSE;
+    return S_OK;
+}
+
+STDMETHODIMP WavAudioDest::DataSet(PVOID data, DWORD bytes) {
+    if (!data && bytes) return E_POINTER;
+    HRESULT hr = write_all(data, bytes);
+    if (SUCCEEDED(hr)) {
+        total_bytes_ += bytes;
+        finalized_ = false;
+    }
+    return hr;
+}
+
+STDMETHODIMP WavAudioDest::BookMark(DWORD) {
+    return S_OK;
+}
+
+HRESULT WavAudioDest::write_all(const void* data, DWORD bytes) {
+    if (file_ == INVALID_HANDLE_VALUE) return E_HANDLE;
+    const BYTE* p = static_cast<const BYTE*>(data);
+    DWORD remaining = bytes;
+    while (remaining) {
+        DWORD written = 0;
+        if (!WriteFile(file_, p, remaining, &written, nullptr)) {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+        if (!written) return E_FAIL;
+        p += written;
+        remaining -= written;
+    }
+    return S_OK;
+}
+
+HRESULT WavAudioDest::finalize_header() {
+    if (file_ == INVALID_HANDLE_VALUE || finalized_) return S_OK;
+    if (format_.empty()) return E_INVALIDARG;
+
+    LARGE_INTEGER pos{};
+    if (!SetFilePointerEx(file_, pos, nullptr, FILE_BEGIN)) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    DWORD fmt_size = (DWORD)format_.size();
+    DWORD data_offset = sizeof(RiffHeader) + fmt_size + sizeof(DataHeader);
+    DWORD riff_size = data_offset + (DWORD)total_bytes_ - 8;
+
+    RiffHeader rh{{'R','I','F','F'}, riff_size, {'W','A','V','E'}, {'f','m','t',' '}, fmt_size};
+    DataHeader dh{{'d','a','t','a'}, (DWORD)total_bytes_};
+
+    HRESULT hr = write_all(&rh, sizeof(rh));
+    if (FAILED(hr)) return hr;
+    hr = write_all(format_.data(), fmt_size);
+    if (FAILED(hr)) return hr;
+    hr = write_all(&dh, sizeof(dh));
+    if (FAILED(hr)) return hr;
+
+    LARGE_INTEGER end{};
+    end.QuadPart = data_offset + total_bytes_;
+    if (!SetFilePointerEx(file_, end, nullptr, FILE_BEGIN)) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+    SetEndOfFile(file_);
+    FlushFileBuffers(file_);
+    finalized_ = true;
+    return S_OK;
+}

@@ -40,6 +40,9 @@ static bool         g_status_port_explicit = false;
 static int          g_dev_index     = -1;
 static int          g_posn_poll_ms  = 0;
 static bool         g_selftest      = false;
+static std::wstring g_wav_out;
+static std::string  g_say_once;
+static bool         g_quit_when_idle = false;
 
 // App state
 static HWND         g_hwnd          = nullptr;
@@ -332,7 +335,7 @@ case WM_APP_DEVICE: {
         if (new_idx != g_dev_index){
             g_dev_index = new_idx;
             // Re-init the engine on the new device
-            if (tts_init(g_eng, g_dev_index)){
+            if (tts_init(g_eng, g_dev_index, g_wav_out)){
                 tts_set_notify_hwnd(g_eng, g_hwnd);
             }
         }
@@ -419,6 +422,9 @@ case WM_APP_TTS_TEXT_DONE: {
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0) {
         kick_if_idle();
     }
+    if (g_quit_when_idle && g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
+        PostQuitMessage(0);
+    }
     return 0;
 }
 
@@ -426,6 +432,7 @@ case WM_APP_TTS_AUDIO_DONE: {
     if (g_eng.inflight.load(std::memory_order_relaxed) == 0 && g_q.empty()) {
         gui_notify_tts_state(false);
         if (g_headless) dprintf("[tts] audio done");
+        if (g_quit_when_idle) PostQuitMessage(0);
     }
     status_server_broadcast("STOP\n", 5);
     return 0;
@@ -476,12 +483,23 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
         else if (a==L"--headless" || a==L"--verbose") g_headless=true;
         else if (a==L"--headlessnoconsole") { g_headless=true; g_headless_noconsole=true; }
         else if (a==L"--log" && i+1<argc){ log_set_path(argv[++i]); }
+        else if (a==L"--wav-out" && i+1<argc){ g_wav_out = argv[++i]; g_headless = true; }
+        else if ((a==L"--text" || a==L"--say") && i+1<argc){
+            std::wstring w = argv[++i];
+            g_say_once = w_to_u8(w);
+            g_headless = true;
+            g_quit_when_idle = true;
+        }
         else if (a==L"--vox"){ g_vox_enabled = true; }
         else if (a==L"--voxclean") { g_vox_enabled = true; g_vox_clean = true; }
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
         else if (a==L"--port" && i+1<argc) g_port = _wtoi(argv[++i]);
         else if (a==L"--status-port" && i+1<argc) { g_status_port = _wtoi(argv[++i]); g_status_port_explicit = true; }
-        else if (a==L"--devnum" && i+1<argc) g_dev_index = _wtoi(argv[++i]);
+        else if (a==L"--devnum" && i+1<argc) {
+            std::wstring dev = argv[++i];
+            if (is_digits(dev)) g_dev_index = _wtoi(dev.c_str());
+            else g_dev_index = find_device_by_name(dev);
+        }
         else if (a==L"--posn-ms" && i+1<argc) g_posn_poll_ms = _wtoi(argv[++i]);
         else if (a==L"--selftest") g_selftest=true;
     }
@@ -555,7 +573,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         }
     }
 
-    if (!tts_init(g_eng, g_dev_index)){
+    if (!tts_init(g_eng, g_dev_index, g_wav_out)){
         MessageBeep(MB_ICONERROR);
         return 2;
     }
@@ -583,6 +601,11 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         // literal (untagged) demo
         std::wstring literal = L"Untagged literal: \\!sf30 should be spoken literally.";
         (void)tts_speak(g_eng, literal, /*force_tagged*/false);
+    }
+
+    if (!g_say_once.empty()){
+        enqueue_incoming_text(g_say_once);
+        kick_if_idle();
     }
 
     MSG msg;

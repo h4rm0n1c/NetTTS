@@ -68,6 +68,6 @@ refreshing the helper scripts.
 
 ### Daemon tips
 
-- Edit `<root>/etc/nettts-daemon.conf` to change the TCP host/port, VOX mode (`vox`, `voxclean`, or `off`), or audio device index. Run `<root>/bin/nettts-daemon.sh show-config` to review the current file.
+- Edit `<root>/etc/nettts-daemon.conf` to change the TCP host/port, VOX mode (`vox`, `voxclean`, or `off`), or audio device. `DEVICE` may be `-1`, a numeric output index, or a case-insensitive partial device name such as `ATR2USB`. Run `<root>/bin/nettts-daemon.sh show-config` to review the current file.
 - `<root>/bin/nettts-daemon.sh start` launches the server headless (`--startserver --headless`) using Wine's `start /b` to avoid popping up a console window and writes runtime logs via the app's built-in logger to `C:\\nettts\\nettts.log`. Use `stop`, `restart`, `status`, or `speak "Hello world"` to manage it.
 - To run in a purely headless environment without an active X server session, install `xvfb` and set `export NETTTS_USE_XVFB=true` before running `nettts-daemon.sh start`.

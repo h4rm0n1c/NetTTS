@@ -8,7 +8,7 @@ namespace {
 
 std::wstring build_device_mapping_text(){
     std::wstring map;
-    map += L"Device index mapping (use with --devnum):\r\n";
+    map += L"Device mapping (use with --devnum INDEX_OR_NAME):\r\n";
     map += L"  -1 : (Default output device)\r\n";
 
     const UINT ndev = waveOutGetNumDevs();
@@ -46,9 +46,10 @@ std::wstring get_help_text_w(){ // central source of truth
     // Current flags are based on the code in main/net_server/tts_engine.
     const wchar_t* lines[] = {
         L"Usage: nettts_gui.exe [--startserver] [--headless|--headlessnoconsole]",
-        L"                       [--host HOST] [--port N] [--devnum N]",
+        L"                       [--host HOST] [--port N] [--devnum INDEX_OR_NAME]",
         L"                       [--vox | --voxclean] [--posn-ms N] [--selftest]",
         L"                       [--status-port N] [--log C:\\path\\file.log]",
+        L"                       [--wav-out C:\\path\\file.wav --text TEXT]",
         L"",
         L"Options:",
         L"  --startserver        Start the TCP server (GUI stays visible; no console window)",
@@ -58,12 +59,14 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  --port N             TCP port (default 5555)",
         L"  --status-port N      Status server TCP port (default --port+1)",
         L"  --list-devices        Print output device indices and names, then exit",
-        L"  --devnum N           Output device number (-1 = default mapper)",
+        L"  --devnum VALUE       Output device number, or case-insensitive device-name substring (-1 = default mapper)",
         L"  --vox                Enable VOX prosody (adds vendor tags; wraps with \\!wH1..\\!wH0)",
         L"  --voxclean           VOX prosody without wH wrap (no \\!wH1/\\!wH0; still adds \\!br, etc.)",
         L"  --posn-ms N          Enable periodic PosnGet polling every N milliseconds (if the engine supports it)",
         L"  --selftest           Queue a short audible self-test matrix and speak it",
         L"  --log PATH           Also write logs to PATH (append mode not implemented)",
+        L"  --wav-out PATH       Write speech audio to a WAV file instead of WinMM audio",
+        L"  --text TEXT          Speak TEXT once, then exit when idle (alias: --say)",
         L"  --help               Show this help and exit",
         L"",
         L"FlexTalk vendor tags:",
@@ -104,7 +107,7 @@ void usage_short(){
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     const wchar_t* s =
         L"Usage: nettts_gui.exe [--startserver] [--headless|--headlessnoconsole] "
-        L"[--host HOST] [--port N] [--devnum N] [--vox|--voxclean]\r\n";
+        L"[--host HOST] [--port N] [--devnum INDEX_OR_NAME] [--vox|--voxclean]\r\n";
     if (h && h != INVALID_HANDLE_VALUE){
         DWORD w; WriteConsoleW(h, s, (DWORD)wcslen(s), &w, nullptr);
     }

@@ -1,5 +1,8 @@
 #include "util.hpp"
 #include <cwctype>
+#include <windows.h>
+#include <mmsystem.h>
+#include <algorithm>
 
 void rtrim(std::string &s){ while(!s.empty()&&(s.back()=='\r'||s.back()=='\n')) s.pop_back(); }
 
@@ -27,4 +30,25 @@ bool is_digits_token(const std::string& s){
     if(s.empty()) return false;
     for(unsigned char c: s){ if(c<'0'||c>'9') return false; }
     return true;
+}
+
+int find_device_by_name(const std::wstring& name) {
+    if (name.empty()) return -1;
+
+    std::wstring target = name;
+    std::transform(target.begin(), target.end(), target.begin(), ::towlower);
+
+    const UINT ndev = waveOutGetNumDevs();
+    for (UINT di = 0; di < ndev; ++di) {
+        WAVEOUTCAPSW caps{};
+        if (waveOutGetDevCapsW(di, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+            std::wstring pname = caps.szPname;
+            std::transform(pname.begin(), pname.end(), pname.begin(), ::towlower);
+
+            if (pname.find(target) != std::wstring::npos) {
+                return (int)di;
+            }
+        }
+    }
+    return -1;
 }
