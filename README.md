@@ -83,6 +83,38 @@ make -f Makefile.mingw -j"$(nproc)"
 
 The binary lands in `./build/` and can be run via Wine (`$HOME/bin/wrun ./build/nettts_gui.exe`).
 
+## Write speech to a WAV file
+
+For headless or service workflows that need rendered audio instead of live
+playback, run NetTTS with `--wav-out` and one-shot text:
+
+```bash
+wine ./build/nettts_gui.exe --headlessnoconsole --wav-out C:\\temp\\hello.wav --text "Hello from NetTTS"
+```
+
+`--say` is accepted as an alias for `--text`. The WAV file is written by the
+selected SAPI 4 voice using its native PCM format; FlexTalk commonly emits
+mono 16-bit PCM at 11025 Hz.
+
+## Select an output device
+
+Use `--list-devices` to print WinMM output device indices and names:
+
+```bash
+wine ./build/nettts_gui.exe --headless --list-devices
+```
+
+Then pass either an index or a case-insensitive substring of the device name:
+
+```bash
+wine ./build/nettts_gui.exe --devnum 2
+wine ./build/nettts_gui.exe --devnum ATR2USB
+```
+
+The Wine daemon helper uses the same parser. In `nettts-daemon.conf`, `DEVICE`
+may be `-1` for the default mapper, a numeric device index, or a partial device
+name such as `ATR2USB`.
+
 ## Customize the include path
 
 By default the build uses `third_party/include/speech.h`. To point at another SDK:

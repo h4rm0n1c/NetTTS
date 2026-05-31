@@ -41,7 +41,7 @@ struct Engine {
 #define WM_APP_TTS_AUDIO_DONE    (WM_APP + 21)
 
 // Init / shutdown
-bool tts_init   (Engine& e, int device_index /* -1 = default mapper */);
+bool tts_init   (Engine& e, int device_index /* -1 = default mapper */, const std::wstring& wav_out = L"");
 void tts_shutdown(Engine& e);
 
 // Where to post WM_APP_* messages

@@ -2,6 +2,7 @@
 #include <cwchar>
 #include <mmsystem.h>   // WAVE_MAPPER
 #include "log.hpp"
+#include "wav_audio_dest.hpp"
 #include <atomic>
 
 
@@ -131,7 +132,7 @@ struct BufSinkW : public ITTSBufNotifySink, public ITTSNotifySink {
 
 // -----------------------------------------------------------
 // Voice selection + audio binding
-static bool select_voice_and_audio(Engine& e, int device_index){
+static bool select_voice_and_audio(Engine& e, int device_index, const std::wstring& wav_out){
 
     ITTSFindW* findW = nullptr;
     HRESULT hr = CoCreateInstance(CLSID_TTSEnumerator, nullptr, CLSCTX_ALL, IID_ITTSFindW, (void**)&findW);
@@ -141,23 +142,37 @@ static bool select_voice_and_audio(Engine& e, int device_index){
     hr = findW->Find(&want, nullptr, &got);
     if (FAILED(hr)) { dbg(L"[tts] ITTSFindW::Find failed hr=0x%08lx", hr); findW->Release(); return false; }
 
-    // Always use the multimedia audio device
-    IAudioMultiMediaDevice* amm = nullptr;
-    hr = CoCreateInstance(CLSID_MMAudioDest, nullptr, CLSCTX_ALL, IID_IAudioMultiMediaDevice, (void**)&amm);
-    if (FAILED(hr) || !amm) { dbg(L"[tts] CLSID_MMAudioDest failed"); findW->Release(); return false; }
+    IUnknown* audio = nullptr;
+    if (!wav_out.empty()) {
+        WavAudioDest* wav = nullptr;
+        hr = WavAudioDest::Create(wav_out, &wav);
+        if (FAILED(hr) || !wav) {
+            dbg(L"[tts] WavAudioDest failed hr=0x%08lx path=%ls", hr, wav_out.c_str());
+            findW->Release();
+            return false;
+        }
+        audio = static_cast<IAudio*>(wav);
+        dbg(L"[tts] wav output: %ls", wav_out.c_str());
+    } else {
+        // Default path: use the multimedia audio device.
+        IAudioMultiMediaDevice* amm = nullptr;
+        hr = CoCreateInstance(CLSID_MMAudioDest, nullptr, CLSCTX_ALL, IID_IAudioMultiMediaDevice, (void**)&amm);
+        if (FAILED(hr) || !amm) { dbg(L"[tts] CLSID_MMAudioDest failed"); findW->Release(); return false; }
 
-    amm->DeviceNumSet(device_index < 0 ? (DWORD)WAVE_MAPPER : (DWORD)device_index);
+        amm->DeviceNumSet(device_index < 0 ? (DWORD)WAVE_MAPPER : (DWORD)device_index);
+        audio = amm;
+    }
 
-    hr = findW->Select(got.gModeID, &e.cw, amm);
+    hr = findW->Select(got.gModeID, &e.cw, audio);
     findW->Release();
     if (FAILED(hr) || !e.cw) {
         dbg(L"[tts] ITTSFindW::Select failed hr=0x%08lx", hr);
-        if (amm) amm->Release();
+        if (audio) audio->Release();
         return false;
     }
 
     // Keep references
-    e.audio_dest = amm;
+    e.audio_dest = audio;
 
     // Attributes (optional)
     (void)e.cw->QueryInterface(IID_ITTSAttributesW, (void**)&e.attrsW);
@@ -180,10 +195,10 @@ static bool select_voice_and_audio(Engine& e, int device_index){
 
 // -----------------------------------------------------------
 // API
-bool tts_init(Engine& e, int device_index){
+bool tts_init(Engine& e, int device_index, const std::wstring& wav_out){
     tts_shutdown(e);
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    if (!select_voice_and_audio(e, device_index)) return false;
+    if (!select_voice_and_audio(e, device_index, wav_out)) return false;
     dbg(L"[tts] init: PosnGet=%s", e.has_posn ? L"yes" : L"no");
     return true;
 }
