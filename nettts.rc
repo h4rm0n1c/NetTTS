@@ -4,7 +4,7 @@
 #endif
 
 #define APP_PRODUCT_NAME     "NetTTS"
-#define APP_VERSION_TAG      "1.0 (Release - Open Source - WTFPL License)"
+#define APP_VERSION_TAG      "1.1a (Multimedia Gold Edition - Open Source - WTFPL License)"
 #define APP_VERSION_DISPLAY  "Version " APP_VERSION_TAG
 #define APP_AUTHOR_NAME      "h4rm0n1c"
 #define APP_COPYRIGHT_TEXT   "\xa9 " APP_AUTHOR_NAME
@@ -49,6 +49,8 @@ END
 #define IDC_EDIT_TEXT    2001
 #define IDC_BTN_SPEAK    2002
 #define IDC_BTN_HELP     2003
+#define IDC_BTN_SAVEWAV  2004
+#define IDC_WAV_STATUS   2005
 
 #define IDC_GRP_SOUND    2400
 #define IDC_GRP_SETTINGS 2401
@@ -58,6 +60,9 @@ END
 #define IDC_DEV_LABEL    2100
 #define IDC_DEV_COMBO    2101
 #define IDC_BTN_APPLY    2102
+#define IDC_CHK_WAVDIR   2103
+#define IDC_EDIT_WAVDIR  2104
+#define IDC_BTN_WAVDIR   2105
 
 #define IDC_VOL_LABEL    2200
 #define IDC_VOL_SLIDER   2201
@@ -81,7 +86,7 @@ END
 #endif
 
 // A compact, clean layout. Font matches the Help dialog ("MS Shell Dlg", 8).
-IDD_MAIN DIALOGEX 0, 0, 420, 405
+IDD_MAIN DIALOGEX 0, 0, 420, 423
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
 EXSTYLE WS_EX_APPWINDOW
 CAPTION "NetTTS"
@@ -92,13 +97,15 @@ BEGIN
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL | WS_TABSTOP,
         7, 7, 406, 140
     PUSHBUTTON "Speak", IDC_BTN_SPEAK, 7,   152, 50, 14, WS_TABSTOP
-    PUSHBUTTON "Help",  IDC_BTN_HELP,  62,  152, 50, 14, WS_TABSTOP
+    PUSHBUTTON "Save as WAV...", IDC_BTN_SAVEWAV, 62, 152, 70, 14, WS_TABSTOP
+    PUSHBUTTON "Help",  IDC_BTN_HELP,  137, 152, 50, 14, WS_TABSTOP
+    LTEXT "", IDC_WAV_STATUS, 193, 155, 162, 10, SS_ENDELLIPSIS | SS_NOPREFIX
     DEFPUSHBUTTON "Close", IDOK,       360, 152, 53, 14, WS_TABSTOP
 
-    GROUPBOX "Sound", IDC_GRP_SOUND, 7, 168, 406, 48
-    GROUPBOX "Prosody/Enunciation", IDC_GRP_PROSODY, 7, 224, 406, 40
-    GROUPBOX "Settings", IDC_GRP_SETTINGS, 7, 272, 406, 82
-    GROUPBOX "NetCat Receiver/TCP Server", IDC_GRP_NETCAT, 7, 362, 406, 36
+    GROUPBOX "Sound", IDC_GRP_SOUND, 7, 168, 406, 66
+    GROUPBOX "Prosody/Enunciation", IDC_GRP_PROSODY, 7, 242, 406, 40
+    GROUPBOX "Settings", IDC_GRP_SETTINGS, 7, 290, 406, 82
+    GROUPBOX "NetCat Receiver/TCP Server", IDC_GRP_NETCAT, 7, 380, 406, 36
 
     // Audio device + Apply
     LTEXT "Device:", IDC_DEV_LABEL, 22, 187, 35, 10
@@ -106,40 +113,45 @@ BEGIN
         CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     PUSHBUTTON "Apply Audio", IDC_BTN_APPLY, 318, 185, 80, 14, WS_TABSTOP
 
+    // WAV folder mode: every utterance (Speak button or TCP) becomes a file
+    AUTOCHECKBOX "Save each utterance as a WAV file in:", IDC_CHK_WAVDIR, 22, 206, 133, 10, WS_TABSTOP
+    EDITTEXT IDC_EDIT_WAVDIR, 158, 204, 157, 13, ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON "Browse...", IDC_BTN_WAVDIR, 318, 203, 80, 14, WS_TABSTOP
+
     // Prosody/Enunciation
-    AUTORADIOBUTTON "Clean", IDC_RAD_CLEAN, 22, 239, 60, 10, WS_GROUP | WS_TABSTOP
-    AUTORADIOBUTTON "HL VOX Prosody LQ", IDC_RAD_VOXLQ, 115, 239, 120, 10
-    AUTORADIOBUTTON "HL VOX Prosody HQ", IDC_RAD_VOXHQ, 268, 239, 130, 10
+    AUTORADIOBUTTON "Clean", IDC_RAD_CLEAN, 22, 257, 60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "HL VOX Prosody LQ", IDC_RAD_VOXLQ, 115, 257, 120, 10
+    AUTORADIOBUTTON "HL VOX Prosody HQ", IDC_RAD_VOXHQ, 268, 257, 130, 10
 
     // Attributes
-    LTEXT "Volume", IDC_VOL_LABEL,  37, 288, 35, 10
+    LTEXT "Volume", IDC_VOL_LABEL,  37, 306, 35, 10
     CONTROL "", IDC_VOL_SLIDER, "msctls_trackbar32",
-        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 75, 286, 255, 15
-    LTEXT "100%", IDC_VOL_VAL, 333, 288, 50, 10
+        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 75, 304, 255, 15
+    LTEXT "100%", IDC_VOL_VAL, 333, 306, 50, 10
 
-    LTEXT "Rate",   IDC_RATE_LABEL, 37, 308, 35, 10
+    LTEXT "Rate",   IDC_RATE_LABEL, 37, 326, 35, 10
     CONTROL "", IDC_RATE_SLIDER, "msctls_trackbar32",
-        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 75, 306, 255, 15
-    LTEXT "1.00", IDC_RATE_VAL, 333, 308, 50, 10
+        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 75, 324, 255, 15
+    LTEXT "1.00", IDC_RATE_VAL, 333, 326, 50, 10
 
-    LTEXT "Pitch",  IDC_PITCH_LABEL, 37, 328, 35, 10
+    LTEXT "Pitch",  IDC_PITCH_LABEL, 37, 346, 35, 10
     CONTROL "", IDC_PITCH_SLIDER, "msctls_trackbar32",
-        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 75, 326, 255, 15
-    LTEXT "1.00", IDC_PITCH_VAL, 333, 328, 50, 10
+        WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 75, 344, 255, 15
+    LTEXT "1.00", IDC_PITCH_VAL, 333, 346, 50, 10
 
     // TCP server
-    LTEXT "Host:", IDC_HOST_LABEL,  22, 375, 25, 10
-    EDITTEXT IDC_EDIT_HOST, 50, 373, 120, 13, ES_AUTOHSCROLL
-    LTEXT "Port:", IDC_PORT_LABEL,  175, 375, 25, 10
-    EDITTEXT IDC_EDIT_PORT, 203, 373, 40, 13, ES_NUMBER | ES_AUTOHSCROLL
-    PUSHBUTTON "Start Server", IDC_BTN_SERVER, 255, 373, 143, 14, WS_TABSTOP
+    LTEXT "Host:", IDC_HOST_LABEL,  22, 393, 25, 10
+    EDITTEXT IDC_EDIT_HOST, 50, 391, 120, 13, ES_AUTOHSCROLL
+    LTEXT "Port:", IDC_PORT_LABEL,  175, 393, 25, 10
+    EDITTEXT IDC_EDIT_PORT, 203, 391, 40, 13, ES_NUMBER | ES_AUTOHSCROLL
+    PUSHBUTTON "Start Server", IDC_BTN_SERVER, 255, 391, 143, 14, WS_TABSTOP
 END
 
 // ---- Version Information (Details tab metadata) ------------------
-// Encode the friendly "1.0" tag as 1,0,0,0 so the numeric file version stays valid.
+// Encode the friendly "1.1a" tag as 1,1,0,0 so the numeric file version stays valid.
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION 1,1,0,0
+ PRODUCTVERSION 1,1,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
@@ -163,7 +175,7 @@ BEGIN
             VALUE "OriginalFilename", "nettts_gui.exe\0"
             VALUE "ProductName", APP_PRODUCT_NAME "\0"
             VALUE "ProductVersion", APP_VERSION_TAG "\0"
-            VALUE "SpecialBuild", "Freeware Deluxe Edition\0"
+            VALUE "SpecialBuild", "Multimedia Gold Edition\0"
             VALUE "SupportURL", APP_REPO_URL "\0"
         END
     END

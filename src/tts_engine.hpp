@@ -8,6 +8,7 @@
 
 // Forward decl
 struct BufSinkW;
+class WavAudioDest;
 
 // Minimal SAPI4 engine wrapper (wide path only)
 struct Engine {
@@ -21,6 +22,10 @@ struct Engine {
 
     // Bound audio destination we passed to Select()
     IUnknown*        audio_dest = nullptr;
+
+    // Set when audio_dest is a WavAudioDest (same object, no extra reference):
+    // the app opens and closes WAV files on it between utterances.
+    WavAudioDest*    wav        = nullptr;
 
     // Where the sink posts notifications
     HWND             notify_hwnd = nullptr;
@@ -41,7 +46,9 @@ struct Engine {
 #define WM_APP_TTS_AUDIO_DONE    (WM_APP + 21)
 
 // Init / shutdown
-bool tts_init   (Engine& e, int device_index /* -1 = default mapper */, const std::wstring& wav_out = L"");
+// to_wav: bind the engine to a WavAudioDest (no file open yet) instead of a
+// WinMM device; device_index is ignored then.
+bool tts_init   (Engine& e, int device_index /* -1 = default mapper */, bool to_wav = false);
 void tts_shutdown(Engine& e);
 
 // Where to post WM_APP_* messages

@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <shellapi.h>
+#include <commdlg.h>
+#include <shlobj.h>
 #include <new>
 #include "gui.hpp"
 #include "help.hpp"   // for get_help_text_w()
@@ -23,9 +25,14 @@
 #define IDC_EDIT_TEXT    2001
 #define IDC_BTN_SPEAK    2002
 #define IDC_BTN_HELP     2003
+#define IDC_BTN_SAVEWAV  2004
+#define IDC_WAV_STATUS   2005
 #define IDC_DEV_LABEL    2100
 #define IDC_DEV_COMBO    2101
 #define IDC_BTN_APPLY    2102
+#define IDC_CHK_WAVDIR   2103
+#define IDC_EDIT_WAVDIR  2104
+#define IDC_BTN_WAVDIR   2105
 #define IDC_VOL_LABEL    2200
 #define IDC_VOL_SLIDER   2201
 #define IDC_VOL_VAL      2202
@@ -76,6 +83,58 @@ void gui_notify_tts_state(bool busy){
     if (s_mainDlg) PostMessageW(s_mainDlg, WM_APP_TTS_STATE, busy ? 1 : 0, 0);
 }
 
+
+// ----------------- WAV output helpers -----------------
+static std::wstring s_last_save_dir;   // folder of the last "Save as WAV..." file
+
+static std::wstring dialog_text(HWND hDlg){
+    int n = GetWindowTextLengthW(GetDlgItem(hDlg, IDC_EDIT_TEXT));
+    if (n <= 0) return std::wstring();
+    std::wstring w(n + 1, L'\0');
+    int read = GetDlgItemTextW(hDlg, IDC_EDIT_TEXT, &w[0], (int)w.size());
+    w.resize(read);
+    return w;
+}
+
+static std::wstring file_name_part(const std::wstring& path){
+    size_t p = path.find_last_of(L"\\/");
+    return p == std::wstring::npos ? path : path.substr(p + 1);
+}
+
+static void set_wav_status(HWND hDlg, const std::wstring& text){
+    SetDlgItemTextW(hDlg, IDC_WAV_STATUS, text.c_str());
+}
+
+// Device controls do nothing while speech goes to WAV files.
+static void reflect_wav_folder_mode(HWND hDlg, bool on){
+    EnableWindow(GetDlgItem(hDlg, IDC_DEV_COMBO), !on);
+    EnableWindow(GetDlgItem(hDlg, IDC_BTN_APPLY), !on);
+}
+
+static bool browse_for_folder(HWND hDlg, std::wstring& out){
+    BROWSEINFOW bi{};
+    bi.hwndOwner = hDlg;
+    bi.lpszTitle = L"Choose a folder for the WAV files (one file per utterance):";
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    LPITEMIDLIST pidl = SHBrowseForFolderW(&bi);
+    if (!pidl) return false;
+    wchar_t path[MAX_PATH]{};
+    bool ok = SHGetPathFromIDListW(pidl, path) != FALSE;
+    CoTaskMemFree(pidl);
+    if (ok) out = path;
+    return ok && !out.empty();
+}
+
+static void post_wav_folder(HWND hDlg){
+    bool on = IsDlgButtonChecked(hDlg, IDC_CHK_WAVDIR) == BST_CHECKED;
+    auto* f = new GuiWavFolder{};
+    f->enable = on;
+    GetDlgItemTextW(hDlg, IDC_EDIT_WAVDIR, f->dir, MAX_PATH - 1);
+    if (s_appWnd) PostMessageW(s_appWnd, WM_APP_WAV_FOLDER, 0, (LPARAM)f);
+    else delete f;
+    reflect_wav_folder_mode(hDlg, on);
+    set_wav_status(hDlg, on ? L"Speech is saved to WAV files, not played." : L"");
+}
 
 // ----------------- Main dialog -----------------
 static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -168,6 +227,67 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
         if (id == IDC_BTN_HELP){ show_help_dialog(hInst, hDlg); return TRUE; }
 
+        else if (id == IDC_BTN_SAVEWAV && code == BN_CLICKED){
+            if (s_tts_busy) return TRUE;
+            std::wstring w = dialog_text(hDlg);
+            if (w.empty()){
+                set_wav_status(hDlg, L"Type some text to save first.");
+                MessageBeep(MB_ICONASTERISK);
+                return TRUE;
+            }
+            std::string u8 = w_to_u8(w);
+            wchar_t file[MAX_PATH]{};
+            std::wstring def = nettts_wav_slug(u8) + L".wav";
+            wcsncpy(file, def.c_str(), MAX_PATH - 1);
+            OPENFILENAMEW ofn{};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = hDlg;
+            ofn.lpstrFilter = L"WAV audio (*.wav)\0*.wav\0All files (*.*)\0*.*\0";
+            ofn.lpstrFile = file;
+            ofn.nMaxFile = MAX_PATH;
+            ofn.lpstrDefExt = L"wav";
+            ofn.lpstrTitle = L"Save speech as WAV";
+            ofn.lpstrInitialDir = s_last_save_dir.empty() ? nullptr : s_last_save_dir.c_str();
+            ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+            if (!GetSaveFileNameW(&ofn)) return TRUE;   // cancelled
+
+            std::wstring path = file;
+            size_t slash = path.find_last_of(L"\\/");
+            if (slash != std::wstring::npos) s_last_save_dir = path.substr(0, slash);
+
+            auto* req = new GuiSaveWav{ path, u8 };
+            if (s_appWnd) PostMessageW(s_appWnd, WM_APP_SAVE_WAV, 0, (LPARAM)req);
+            else { delete req; return TRUE; }
+            s_tts_busy = true;
+            SetDlgItemTextW(hDlg, IDC_BTN_SPEAK, L"Stop");
+            EnableWindow(GetDlgItem(hDlg, IDC_BTN_SAVEWAV), FALSE);
+            set_wav_status(hDlg, L"Saving " + file_name_part(path) + L"...");
+            return TRUE;
+        }
+
+        else if (id == IDC_CHK_WAVDIR && code == BN_CLICKED){
+            bool on = IsDlgButtonChecked(hDlg, IDC_CHK_WAVDIR) == BST_CHECKED;
+            if (on && GetWindowTextLengthW(GetDlgItem(hDlg, IDC_EDIT_WAVDIR)) == 0){
+                std::wstring dir;
+                if (!browse_for_folder(hDlg, dir)){
+                    CheckDlgButton(hDlg, IDC_CHK_WAVDIR, BST_UNCHECKED);
+                    return TRUE;
+                }
+                SetDlgItemTextW(hDlg, IDC_EDIT_WAVDIR, dir.c_str());
+            }
+            post_wav_folder(hDlg);
+            return TRUE;
+        }
+
+        else if (id == IDC_BTN_WAVDIR && code == BN_CLICKED){
+            std::wstring dir;
+            if (browse_for_folder(hDlg, dir)){
+                SetDlgItemTextW(hDlg, IDC_EDIT_WAVDIR, dir.c_str());
+                if (IsDlgButtonChecked(hDlg, IDC_CHK_WAVDIR) == BST_CHECKED) post_wav_folder(hDlg);
+            }
+            return TRUE;
+        }
+
         else if ((id == IDC_RAD_CLEAN || id == IDC_RAD_VOXLQ || id == IDC_RAD_VOXHQ) && code == BN_CLICKED){
             int mode = (id==IDC_RAD_CLEAN) ? 0 : (id==IDC_RAD_VOXLQ ? 1 : 2);
             if (s_appWnd) PostMessageW(s_appWnd, WM_APP_PROSODY, mode, 0);
@@ -251,6 +371,41 @@ static INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_APP_TTS_STATE:{
         s_tts_busy = (wParam != 0);
         SetDlgItemTextW(hDlg, IDC_BTN_SPEAK, s_tts_busy ? L"Stop" : L"Speak");
+        EnableWindow(GetDlgItem(hDlg, IDC_BTN_SAVEWAV), !s_tts_busy);
+        return TRUE;
+    }
+    case WM_APP_WAV_DONE:{
+        auto* r = (GuiWavDone*)lParam;
+        if (r){
+            std::wstring name = file_name_part(r->path);
+            wchar_t b[MAX_PATH + 64];
+            if (!r->ok){
+                _snwprintf(b, MAX_PATH + 63, L"Could not write %ls", name.c_str());
+                if (r->from_save_button){
+                    std::wstring msg = L"NetTTS could not write the WAV file:\r\n\r\n" + std::wstring(r->path) +
+                                       L"\r\n\r\nCheck that the folder exists and is writable.";
+                    MessageBoxW(hDlg, msg.c_str(), L"Save as WAV", MB_OK | MB_ICONWARNING);
+                }
+            } else if (r->stopped){
+                _snwprintf(b, MAX_PATH + 63, L"Stopped, kept %.1f s: %ls", r->seconds, name.c_str());
+            } else {
+                _snwprintf(b, MAX_PATH + 63, L"Saved %.1f s: %ls", r->seconds, name.c_str());
+            }
+            b[MAX_PATH + 63] = 0;
+            set_wav_status(hDlg, b);
+            delete r;
+        }
+        return TRUE;
+    }
+    case WM_APP_WAV_FOLDER_STATE:{
+        auto* f = (GuiWavFolder*)lParam;
+        if (f){
+            SetDlgItemTextW(hDlg, IDC_EDIT_WAVDIR, f->dir);
+            CheckDlgButton(hDlg, IDC_CHK_WAVDIR, f->enable ? BST_CHECKED : BST_UNCHECKED);
+            reflect_wav_folder_mode(hDlg, f->enable);
+            if (f->enable) set_wav_status(hDlg, L"Speech is saved to WAV files, not played.");
+            delete f;
+        }
         return TRUE;
     }
     case WM_APP_DEVICE_STATE:{

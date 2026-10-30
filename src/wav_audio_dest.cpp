@@ -34,55 +34,96 @@ DWORD format_size_from_data(SDATA data) {
         return 0;
     }
     const WAVEFORMATEX* wf = static_cast<const WAVEFORMATEX*>(data.pData);
-    DWORD size = sizeof(WAVEFORMATEX);
-    if (data.dwSize >= sizeof(WAVEFORMATEX)) {
-        size += wf->cbSize;
-    }
+    DWORD size = sizeof(WAVEFORMATEX) + wf->cbSize;
     if (size > data.dwSize) {
         size = data.dwSize;
     }
     return size;
 }
 
+struct Lock {
+    explicit Lock(CRITICAL_SECTION& cs) : cs_(cs) { EnterCriticalSection(&cs_); }
+    ~Lock() { LeaveCriticalSection(&cs_); }
+    CRITICAL_SECTION& cs_;
+};
+
 } // namespace
 
 HRESULT WavAudioDest::Create(const std::wstring& path, WavAudioDest** out) {
     if (!out) return E_POINTER;
     *out = nullptr;
-
-    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE) {
-        dprintf("[wav] CreateFile failed path=%ls err=%lu", path.c_str(), GetLastError());
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    WavAudioDest* dest = new WavAudioDest(file);
-    HRESULT hr = dest->initialize(path);
-    if (FAILED(hr)) {
-        dest->Release();
-        return hr;
+    WavAudioDest* dest = new WavAudioDest();
+    if (!path.empty()) {
+        HRESULT hr = dest->begin_file(path);
+        if (FAILED(hr)) {
+            dest->Release();
+            return hr;
+        }
     }
     *out = dest;
     return S_OK;
 }
 
-WavAudioDest::WavAudioDest(HANDLE file) : file_(file) {
+WavAudioDest::WavAudioDest() {
+    InitializeCriticalSection(&lock_);
     WAVEFORMATEX wf = default_format();
     const BYTE* begin = reinterpret_cast<const BYTE*>(&wf);
     format_.assign(begin, begin + sizeof(WAVEFORMATEX));
 }
 
 WavAudioDest::~WavAudioDest() {
-    finalize_header();
-    if (file_ != INVALID_HANDLE_VALUE) {
-        CloseHandle(file_);
-        file_ = INVALID_HANDLE_VALUE;
+    {
+        Lock l(lock_);
+        close_file_locked(nullptr);
     }
+    DeleteCriticalSection(&lock_);
 }
 
-HRESULT WavAudioDest::initialize(const std::wstring&) {
-    return finalize_header();
+HRESULT WavAudioDest::begin_file(const std::wstring& path) {
+    Lock l(lock_);
+    close_file_locked(nullptr);
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        DWORD err = GetLastError();
+        dprintf("[wav] CreateFile failed path=%ls err=%lu", path.c_str(), err);
+        return HRESULT_FROM_WIN32(err);
+    }
+    file_ = file;
+    file_bytes_ = 0;
+    finalized_ = false;
+    return finalize_header();   // valid (empty) WAV from the start
+}
+
+HRESULT WavAudioDest::end_file(QWORD* data_bytes) {
+    Lock l(lock_);
+    if (file_ == INVALID_HANDLE_VALUE) {
+        if (data_bytes) *data_bytes = 0;
+        return S_FALSE;
+    }
+    close_file_locked(data_bytes);
+    return S_OK;
+}
+
+bool WavAudioDest::has_file() {
+    Lock l(lock_);
+    return file_ != INVALID_HANDLE_VALUE;
+}
+
+DWORD WavAudioDest::avg_bytes_per_sec() {
+    Lock l(lock_);
+    if (format_.size() < sizeof(WAVEFORMATEX)) return 0;
+    return reinterpret_cast<const WAVEFORMATEX*>(format_.data())->nAvgBytesPerSec;
+}
+
+void WavAudioDest::close_file_locked(QWORD* data_bytes) {
+    if (data_bytes) *data_bytes = file_bytes_;
+    if (file_ == INVALID_HANDLE_VALUE) return;
+    finalized_ = false;
+    finalize_header();
+    CloseHandle(file_);
+    file_ = INVALID_HANDLE_VALUE;
+    file_bytes_ = 0;
 }
 
 STDMETHODIMP WavAudioDest::QueryInterface(REFIID riid, LPVOID FAR* ppvObj) {
@@ -110,6 +151,7 @@ STDMETHODIMP_(ULONG) WavAudioDest::Release() {
 }
 
 STDMETHODIMP WavAudioDest::Flush() {
+    Lock l(lock_);
     return finalize_header();
 }
 
@@ -130,7 +172,8 @@ STDMETHODIMP WavAudioDest::PassNotify(PVOID, IID) {
 
 STDMETHODIMP WavAudioDest::PosnGet(PQWORD pos) {
     if (!pos) return E_POINTER;
-    *pos = total_bytes_;
+    Lock l(lock_);
+    *pos = stream_bytes_;
     return S_OK;
 }
 
@@ -147,12 +190,14 @@ STDMETHODIMP WavAudioDest::Start() {
 }
 
 STDMETHODIMP WavAudioDest::Stop() {
+    Lock l(lock_);
     return finalize_header();
 }
 
 STDMETHODIMP WavAudioDest::TotalGet(PQWORD total) {
     if (!total) return E_POINTER;
-    *total = total_bytes_;
+    Lock l(lock_);
+    *total = stream_bytes_;
     return S_OK;
 }
 
@@ -167,6 +212,7 @@ STDMETHODIMP WavAudioDest::ToFileTime(PQWORD pos, FILETIME* ft) {
 
 STDMETHODIMP WavAudioDest::WaveFormatGet(PSDATA data) {
     if (!data) return E_POINTER;
+    Lock l(lock_);
     void* copy = CoTaskMemAlloc(format_.size());
     if (!copy) return E_OUTOFMEMORY;
     std::memcpy(copy, format_.data(), format_.size());
@@ -178,8 +224,10 @@ STDMETHODIMP WavAudioDest::WaveFormatGet(PSDATA data) {
 STDMETHODIMP WavAudioDest::WaveFormatSet(SDATA data) {
     DWORD size = format_size_from_data(data);
     if (!size) return E_INVALIDARG;
+    Lock l(lock_);
     const BYTE* begin = static_cast<const BYTE*>(data.pData);
     format_.assign(begin, begin + size);
+    finalized_ = false;
     return finalize_header();
 }
 
@@ -191,9 +239,12 @@ STDMETHODIMP WavAudioDest::FreeSpace(DWORD* bytes, BOOL* eof) {
 
 STDMETHODIMP WavAudioDest::DataSet(PVOID data, DWORD bytes) {
     if (!data && bytes) return E_POINTER;
+    Lock l(lock_);
+    stream_bytes_ += bytes;
+    if (file_ == INVALID_HANDLE_VALUE) return S_OK;   // no file open: discard
     HRESULT hr = write_all(data, bytes);
     if (SUCCEEDED(hr)) {
-        total_bytes_ += bytes;
+        file_bytes_ += bytes;
         finalized_ = false;
     }
     return hr;
@@ -230,10 +281,10 @@ HRESULT WavAudioDest::finalize_header() {
 
     DWORD fmt_size = (DWORD)format_.size();
     DWORD data_offset = sizeof(RiffHeader) + fmt_size + sizeof(DataHeader);
-    DWORD riff_size = data_offset + (DWORD)total_bytes_ - 8;
+    DWORD riff_size = data_offset + (DWORD)file_bytes_ - 8;
 
     RiffHeader rh{{'R','I','F','F'}, riff_size, {'W','A','V','E'}, {'f','m','t',' '}, fmt_size};
-    DataHeader dh{{'d','a','t','a'}, (DWORD)total_bytes_};
+    DataHeader dh{{'d','a','t','a'}, (DWORD)file_bytes_};
 
     HRESULT hr = write_all(&rh, sizeof(rh));
     if (FAILED(hr)) return hr;
@@ -243,12 +294,11 @@ HRESULT WavAudioDest::finalize_header() {
     if (FAILED(hr)) return hr;
 
     LARGE_INTEGER end{};
-    end.QuadPart = data_offset + total_bytes_;
+    end.QuadPart = data_offset + file_bytes_;
     if (!SetFilePointerEx(file_, end, nullptr, FILE_BEGIN)) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
     SetEndOfFile(file_);
-    FlushFileBuffers(file_);
     finalized_ = true;
     return S_OK;
 }

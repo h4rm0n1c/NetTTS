@@ -83,18 +83,58 @@ make -f Makefile.mingw -j"$(nproc)"
 
 The binary lands in `./build/` and can be run via Wine (`$HOME/bin/wrun ./build/nettts_gui.exe`).
 
-## Write speech to a WAV file
+## Save speech as WAV files
 
-For headless or service workflows that need rendered audio instead of live
-playback, run NetTTS with `--wav-out` and one-shot text:
+New in 1.1a (Multimedia Gold Edition): NetTTS can write speech to WAV files
+instead of (or as well as, by switching back) playing it.
+
+**From the window**
+
+- **Save as WAV...** speaks whatever is in the text box into a WAV file you
+  pick. Nothing plays aloud; the file name defaults to the first words of the
+  text. Volume, rate, pitch and the prosody mode (Clean / HL VOX) apply exactly
+  as they do when speaking. When it is done, the status line next to the button
+  shows the file name and length, and the next **Speak** plays through your
+  speakers again.
+- **Save each utterance as a WAV file in:** (in the Sound box) turns NetTTS
+  into a recorder: every utterance, whether from the **Speak** button or from
+  the TCP server, becomes its own WAV file in the chosen folder instead of
+  playing. Files are named from their text (`attention_security.wav`, then
+  `attention_security_2.wav` for a repeat). Untick it to go back to the
+  speakers.
+
+**Batch over the network**
+
+Combine folder mode with the TCP server to render a whole list of lines, one
+file per line:
 
 ```bash
-wine ./build/nettts_gui.exe --headlessnoconsole --wav-out C:\\temp\\hello.wav --text "Hello from NetTTS"
+wine ./build/nettts_gui.exe --startserver --wav-dir C:\\vox_lines
+printf 'Attention, security personnel.\nThe test chamber is now open.\n' | nc -q 0 127.0.0.1 5555
 ```
 
-`--say` is accepted as an alias for `--text`. The WAV file is written by the
-selected SAPI 4 voice using its native PCM format; FlexTalk commonly emits
-mono 16-bit PCM at 11025 Hz.
+The status socket announces each finished file with a `WAV <path>` line, so a
+script can tell when its file is ready. Network clients only choose the text;
+file names are always derived from it inside the chosen folder.
+
+**From the command line**
+
+```bash
+# one sentence into one file, then exit
+wine ./build/nettts_gui.exe --headlessnoconsole --wav-out C:\\temp\\hello.wav --text "Hello from NetTTS"
+
+# everything spoken during this run into one file (e.g. with --startserver)
+wine ./build/nettts_gui.exe --startserver --headlessnoconsole --wav-out C:\\temp\\session.wav
+
+# one file per utterance
+wine ./build/nettts_gui.exe --wav-dir C:\\vox_lines
+```
+
+`--say` is accepted as an alias for `--text`. If the WAV file cannot be
+created, NetTTS exits with code 3.
+
+WAV files are written in the voice's native PCM format, with no resampling;
+FlexTalk produces mono 16-bit PCM at 11025 Hz.
 
 ## Select an output device
 
@@ -139,7 +179,8 @@ Run `nettts_gui.exe --runserver` (or press **Start server**) to expose:
 Status socket messages:
 
 - `START` when speech begins.
-- `STOP` when playback ends.
+- `STOP` when playback ends (or, when writing WAV files, when the last file is done).
+- `WAV <path>` when a WAV file has been written (Save as WAV, folder mode).
 
 ### One-shot TCP commands
 

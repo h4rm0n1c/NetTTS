@@ -132,7 +132,7 @@ struct BufSinkW : public ITTSBufNotifySink, public ITTSNotifySink {
 
 // -----------------------------------------------------------
 // Voice selection + audio binding
-static bool select_voice_and_audio(Engine& e, int device_index, const std::wstring& wav_out){
+static bool select_voice_and_audio(Engine& e, int device_index, bool to_wav){
 
     ITTSFindW* findW = nullptr;
     HRESULT hr = CoCreateInstance(CLSID_TTSEnumerator, nullptr, CLSCTX_ALL, IID_ITTSFindW, (void**)&findW);
@@ -143,16 +143,16 @@ static bool select_voice_and_audio(Engine& e, int device_index, const std::wstri
     if (FAILED(hr)) { dbg(L"[tts] ITTSFindW::Find failed hr=0x%08lx", hr); findW->Release(); return false; }
 
     IUnknown* audio = nullptr;
-    if (!wav_out.empty()) {
-        WavAudioDest* wav = nullptr;
-        hr = WavAudioDest::Create(wav_out, &wav);
+    WavAudioDest* wav = nullptr;
+    if (to_wav) {
+        hr = WavAudioDest::Create(L"", &wav);
         if (FAILED(hr) || !wav) {
-            dbg(L"[tts] WavAudioDest failed hr=0x%08lx path=%ls", hr, wav_out.c_str());
+            dbg(L"[tts] WavAudioDest failed hr=0x%08lx", hr);
             findW->Release();
             return false;
         }
         audio = static_cast<IAudio*>(wav);
-        dbg(L"[tts] wav output: %ls", wav_out.c_str());
+        dbg(L"[tts] audio: WAV file output");
     } else {
         // Default path: use the multimedia audio device.
         IAudioMultiMediaDevice* amm = nullptr;
@@ -173,6 +173,7 @@ static bool select_voice_and_audio(Engine& e, int device_index, const std::wstri
 
     // Keep references
     e.audio_dest = audio;
+    e.wav = wav;
 
     // Attributes (optional)
     (void)e.cw->QueryInterface(IID_ITTSAttributesW, (void**)&e.attrsW);
@@ -195,10 +196,10 @@ static bool select_voice_and_audio(Engine& e, int device_index, const std::wstri
 
 // -----------------------------------------------------------
 // API
-bool tts_init(Engine& e, int device_index, const std::wstring& wav_out){
+bool tts_init(Engine& e, int device_index, bool to_wav){
     tts_shutdown(e);
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    if (!select_voice_and_audio(e, device_index, wav_out)) return false;
+    if (!select_voice_and_audio(e, device_index, to_wav)) return false;
     dbg(L"[tts] init: PosnGet=%s", e.has_posn ? L"yes" : L"no");
     return true;
 }
@@ -209,6 +210,7 @@ void tts_shutdown(Engine& e){
     if (e.attrsW)     { e.attrsW->Release();    e.attrsW = nullptr; }
     if (e.cw)         { e.cw->Release();        e.cw = nullptr; }
     if (e.audio_dest) { e.audio_dest->Release(); e.audio_dest = nullptr; }
+    e.wav = nullptr;
     e.inflight.store(0);
     e.notify_hwnd = nullptr;
 }
