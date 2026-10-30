@@ -8,7 +8,7 @@ namespace {
 
 std::wstring build_device_mapping_text(){
     std::wstring map;
-    map += L"Device index mapping (use with --devnum):\r\n";
+    map += L"Device mapping (use with --devnum INDEX_OR_NAME):\r\n";
     map += L"  -1 : (Default output device)\r\n";
 
     const UINT ndev = waveOutGetNumDevs();
@@ -46,9 +46,10 @@ std::wstring get_help_text_w(){ // central source of truth
     // Current flags are based on the code in main/net_server/tts_engine.
     const wchar_t* lines[] = {
         L"Usage: nettts_gui.exe [--startserver] [--headless|--headlessnoconsole]",
-        L"                       [--host HOST] [--port N] [--devnum N]",
+        L"                       [--host HOST] [--port N] [--devnum INDEX_OR_NAME]",
         L"                       [--vox | --voxclean] [--posn-ms N] [--selftest]",
         L"                       [--status-port N] [--log C:\\path\\file.log]",
+        L"                       [--wav-out C:\\path\\file.wav] [--wav-dir C:\\folder] [--text TEXT]",
         L"",
         L"Options:",
         L"  --startserver        Start the TCP server (GUI stays visible; no console window)",
@@ -58,12 +59,16 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  --port N             TCP port (default 5555)",
         L"  --status-port N      Status server TCP port (default --port+1)",
         L"  --list-devices        Print output device indices and names, then exit",
-        L"  --devnum N           Output device number (-1 = default mapper)",
+        L"  --devnum VALUE       Output device number, or case-insensitive device-name substring (-1 = default mapper)",
         L"  --vox                Enable VOX prosody (adds vendor tags; wraps with \\!wH1..\\!wH0)",
         L"  --voxclean           VOX prosody without wH wrap (no \\!wH1/\\!wH0; still adds \\!br, etc.)",
         L"  --posn-ms N          Enable periodic PosnGet polling every N milliseconds (if the engine supports it)",
         L"  --selftest           Queue a short audible self-test matrix and speak it",
         L"  --log PATH           Also write logs to PATH (append mode not implemented)",
+        L"  --wav-out PATH       Record all speech of this run into one WAV file (nothing is played)",
+        L"  --wav-dir FOLDER     Save each utterance as its own WAV file in FOLDER (nothing is played);",
+        L"                       files are named from their text (attention_security.wav, _2, _3 ...)",
+        L"  --text TEXT          Speak TEXT once, then exit when done (alias: --say)",
         L"  --help               Show this help and exit",
         L"",
         L"FlexTalk vendor tags:",
@@ -80,6 +85,14 @@ std::wstring get_help_text_w(){ // central source of truth
         L"  /pause ms            Insert a pause tag (e.g. 500 -> \\!sf500) and boundary",
         L"  /stop                Stop current speech",
         L"  /quit | /exit        Shutdown the server/app",
+        L"",
+        L"Saving speech as WAV (GUI):",
+        L"  Save as WAV...       Speak the text box into a WAV file you choose (not played aloud)",
+        L"  Save each utterance  (Sound box) Every utterance -- Speak button or TCP text -- becomes",
+        L"                       a WAV file in the chosen folder instead of playing",
+        L"  WAV files are mono 16-bit PCM at the voice's native rate (FlexTalk: 11025 Hz). Volume,",
+        L"  rate, pitch and prosody mode apply as they do when speaking.",
+        L"  The status server announces each finished file as a line: WAV <path>",
         L"",
         L"Inline markup:",
         L"  [[pause 500]]        In-band pause directive (transforms to \\!sf500 plus \\!br)",
@@ -104,7 +117,7 @@ void usage_short(){
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     const wchar_t* s =
         L"Usage: nettts_gui.exe [--startserver] [--headless|--headlessnoconsole] "
-        L"[--host HOST] [--port N] [--devnum N] [--vox|--voxclean]\r\n";
+        L"[--host HOST] [--port N] [--devnum INDEX_OR_NAME] [--vox|--voxclean]\r\n";
     if (h && h != INVALID_HANDLE_VALUE){
         DWORD w; WriteConsoleW(h, s, (DWORD)wcslen(s), &w, nullptr);
     }

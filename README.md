@@ -15,115 +15,126 @@
   </a>
 </p>
 
+NetTTS is a small Win32 front end for AT&T's FlexTalk and other SAPI 4.0
+voices. It runs on old Windows boxes, modern Windows, and Wine.
 
-NetTTS is a small Win32 GUI that wraps FlexTalk and other SAPI 4.0 voices. It’s meant to run on old Windows boxes, modern Windows, or Wine.
+FlexTalk is the engine Valve used for the VOX / Black Mesa announcement
+samples in Half-Life, and NetTTS has prosody modes based on how those lines
+were put together. This repo also keeps FlexTalk itself around so it doesn't
+disappear. Fun! :D
 
-## Project Strengths
+What it does:
 
-- Works on retro Windows installs without a hunt for old DLLs.
-- Builds cleanly on Linux with MinGW-w64.
-- Bundles a known-good `speech.h` so headers don’t drift.
-- Matches the maintainer’s Devuan + Wine workflow.
-- Preserves the legacy of AT&T's Flextalk Engine in a public repository.
-- Preserves the legacy of Valve's game "Halflife" as this Engine was used for the "VOX"/Black Mesa Announcement System samples in the game.
-- Implements a unique prosody encoder system based on observations of the utility of valve's fictionally created VOX announcement system
-- Fun! :D
+- Speaks text typed into the window, or sent to it over TCP (e.g. with netcat).
+- Clean, HL VOX LQ and HL VOX HQ prosody modes; volume, rate and pitch sliders.
+- Saves speech as WAV files (new in 1.1a).
+- A status socket that reports when speech starts and stops, for things like
+  ducking music in OBS.
 
-## Run the prebuilt binary
+Want to make it sing? There's a [NetTTS sing-along gist](https://gist.github.com/h4rm0n1c/2ddaa14c03be25c2072347a1b27e25da).
 
-1. Download the zip from [Releases](../../releases) and unpack it.
-2. Install the SAPI 4.0 runtime (`third_party/Dependencies/spchapi.exe`) if needed.
+## Installing
+
+### On Windows
+
+1. Download `nettts_gui.zip` from [Releases](../../releases) and unpack it.
+2. Install the SAPI 4.0 runtime (`third_party/Dependencies/spchapi.exe`) if
+   you don't already have it.
 3. Install FlexTalk from `third_party/Dependencies/flextalk.zip`.
-4. Launch `nettts_gui.exe` on Windows or via Wine (`wrun ./build/nettts_gui.exe`).
+4. Run `nettts_gui.exe`.
 
-Want to make it sing? There’s a [NetTTS sing-along gist](https://gist.github.com/h4rm0n1c/2ddaa14c03be25c2072347a1b27e25da).
+### On Linux (Wine)
 
-## Wine prefix automation
-
-If you want a ready-to-roll Wine XP sandbox with SAPI 4.0, FlexTalk, and NetTTS preinstalled, run:
-
-```bash
-./scripts/winetricks/setup_nettts_prefix.sh
-```
-
-Or pull the latest helper directly from GitHub:
+The setup script builds a Windows XP Wine prefix with SAPI 4.0, FlexTalk and
+NetTTS already installed:
 
 ```bash
 curl -fsSLo setup_nettts_prefix.sh https://raw.githubusercontent.com/h4rm0n1c/NetTTS/main/scripts/winetricks/setup_nettts_prefix.sh \
   && bash setup_nettts_prefix.sh --root-dir "$(pwd)/nettts"
 ```
 
-Defaults:
+or, from a checkout, `./scripts/winetricks/setup_nettts_prefix.sh`.
 
-- Prefix and files land under `~/nettts/`.
-- Prefix path: `~/nettts/wineprefix/`.
-- Logs: `~/nettts/wineprefix/drive_c/nettts/nettts.log`.
+Everything goes under `~/nettts/` by default (prefix in `~/nettts/wineprefix/`,
+log in `~/nettts/wineprefix/drive_c/nettts/nettts.log`). The script uses
+winetricks for `winxp`, `vcrun6`, `mfc42` and `riched20`, downloads SAPI,
+FlexTalk and the latest NetTTS release, and runs the FlexTalk installer for
+you (automation by [@zulc22](https://github.com/zulc22)).
 
-The script uses winetricks (`winxp`, `vcrun6`, `mfc42`, `riched20`), downloads SAPI, FlexTalk, and the NetTTS zip, then wires up helper scripts.
+It also installs some helper scripts:
 
-FlexTalk’s Installer will launch and complete installation on its own thanks to [@zulc22](https://github.com/zulc22)
+- `~/nettts/bin/nettts-daemon.sh` starts and stops the TCP server.
+- `~/nettts/bin/nettts-gui.sh` opens the window.
+- `~/nettts/bin/flextalk-controlpanel.sh` opens the FlexTalk control panel.
 
-Helper scripts:
+More detail is in [docs/winetricks.md](docs/winetricks.md).
 
-- `~/nettts/bin/nettts-daemon.sh` – start/stop the TCP server.
-- `~/nettts/bin/nettts-gui.sh` – launch the GUI.
-- `~/nettts/bin/flextalk-controlpanel.sh` – open the FlexTalk control panel.
+## Saving speech as WAV
 
-More detail: [docs/winetricks.md](docs/winetricks.md).
+New in 1.1a. There are two ways to do it from the window:
 
-## Quick start build (Linux host)
+- **Save as WAV...** writes whatever is in the text box to a WAV file you
+  choose, instead of playing it. Volume, rate, pitch and the prosody mode
+  apply as they do for Speak. When it's done, the line next to the button
+  shows the file name and length.
+- **Save each utterance as a WAV file in:** (in the Sound box) writes every
+  utterance to its own file in that folder instead of playing it, whether it
+  came from the Speak button or over TCP. Files are named after their text,
+  for example `attention_security.wav`, then `attention_security_2.wav` if
+  the same line comes up again. Untick it to go back to the speakers.
 
-```bash
-sudo apt-get update
-sudo apt-get install -y make mingw-w64 g++-mingw-w64-i686
-
-make -f Makefile.mingw -j"$(nproc)"
-# → build/nettts_gui.exe
-```
-
-The binary lands in `./build/` and can be run via Wine (`$HOME/bin/wrun ./build/nettts_gui.exe`).
-
-## Customize the include path
-
-By default the build uses `third_party/include/speech.h`. To point at another SDK:
+The second one is handy for making a batch of lines over the network:
 
 ```bash
-make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -j"$(nproc)"
+wine nettts_gui.exe --startserver --wav-dir 'C:\vox_lines'
+printf 'Attention, security personnel.\nThe test chamber is now open.\n' | nc -q 0 127.0.0.1 5555
 ```
 
-## Housekeeping
+TCP clients only send text; they can't choose where files go.
 
-- Clean: `make -f Makefile.mingw clean`
-- Artifacts: `./build/`
-- Optional: `third_party/Dependencies/` may contain installers for SAPI/FlexTalk.
+From the command line:
 
-## Live status sidechannel
+```bash
+# one line into one file, then exit
+wine nettts_gui.exe --headlessnoconsole --wav-out 'C:\temp\hello.wav' --text "Hello from NetTTS"
 
-Run `nettts_gui.exe --runserver` (or press **Start server**) to expose:
+# everything said during this run into one file
+wine nettts_gui.exe --startserver --headlessnoconsole --wav-out 'C:\temp\session.wav'
 
-- Command socket on `--port` (default `5555`).
-- Status socket on `--status-port` (defaults to `--port+1`, so `5556`).
+# one file per utterance
+wine nettts_gui.exe --wav-dir 'C:\vox_lines'
+```
 
-Status socket messages:
+NetTTS exits with code 3 if it can't create the `--wav-out` file. `--say`
+works as well as `--text`.
 
-- `START` when speech begins.
-- `STOP` when playback ends.
+The files are in whatever format the voice produces, with no resampling. For
+FlexTalk that's mono, 16-bit, 11025 Hz.
 
-### One-shot TCP commands
+## TCP server
 
-The command socket keeps the connection open. To send one line and exit:
+Press **Start Server**, or start NetTTS with `--startserver`. It listens on
+two ports:
+
+- `5555` (`--port`) takes text, one line per utterance.
+- `5556` (`--status-port`, defaults to the text port + 1) sends status lines:
+  - `START` when speech begins;
+  - `STOP` when it ends (or when the last WAV file is done);
+  - `WAV <path>` when a WAV file has been written.
+
+The text connection stays open. To send one line and close:
 
 ```bash
 printf 'Hello World From Net TTS NetCat TCP Server!\n' | nc -q 0 127.0.0.1 5555
 ```
 
-BSD netcat also supports `-N`:
+BSD netcat uses `-N` instead:
 
 ```bash
 printf 'Message for Gordon Freeman, you will not escape this time.\n' | nc -N 127.0.0.1 5555
 ```
 
-A minimal status consumer:
+Reacting to the status port:
 
 ```bash
 nc 127.0.0.1 5556 | while read -r line; do
@@ -134,6 +145,51 @@ nc 127.0.0.1 5556 | while read -r line; do
 done
 ```
 
-Thanks to Valve for the games and to the classic Win32 UI era that inspired this project.
+Lines starting with `/` are commands: `/rate N`, `/pitch N`, `/pause ms` and
+`/stop`. `[[pause 500]]` inside a line inserts a pause. The Help button lists
+these, the FlexTalk `\!` tags, and all the command-line options.
 
-AutoHotKey Automation by [@zulc22](https://github.com/zulc22)
+## Choosing the output device
+
+Pick it in the Sound box, or on the command line. `--list-devices` prints the
+numbers and names:
+
+```bash
+wine nettts_gui.exe --headless --list-devices
+```
+
+`--devnum` takes a number or part of a device name (not case-sensitive):
+
+```bash
+wine nettts_gui.exe --devnum 2
+wine nettts_gui.exe --devnum ATR2USB
+```
+
+`DEVICE` in `nettts-daemon.conf` works the same way, and `-1` means the
+default device.
+
+## Building
+
+On Linux with MinGW-w64:
+
+```bash
+sudo apt-get install -y make mingw-w64 g++-mingw-w64-i686
+make -f Makefile.mingw -j"$(nproc)"
+```
+
+The exe ends up in `build/nettts_gui.exe`. `make -f Makefile.mingw clean`
+removes it.
+
+The build uses the `speech.h` in `third_party/include/`, so you don't need
+the old Speech SDK. To use a different one:
+
+```bash
+make -f Makefile.mingw INC_DIR="C:/Program Files/Microsoft Speech SDK/Include" -j"$(nproc)"
+```
+
+## Credits
+
+Thanks to Valve for the games, and to the classic Win32 UI era that inspired
+this project.
+
+AutoHotKey automation by [@zulc22](https://github.com/zulc22).

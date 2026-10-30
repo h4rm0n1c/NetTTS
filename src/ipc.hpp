@@ -70,8 +70,29 @@
 #define WM_APP_SET_TEXT     (WM_APP + 24)    // main → GUI: payload std::string*
 #endif
 
+#ifndef WM_APP_SAVE_WAV
+#define WM_APP_SAVE_WAV     (WM_APP + 25)    // GUI → main: payload GuiSaveWav*
+#endif
+#ifndef WM_APP_WAV_FOLDER
+#define WM_APP_WAV_FOLDER   (WM_APP + 26)    // GUI → main: payload GuiWavFolder*
+#endif
+#ifndef WM_APP_WAV_DONE
+#define WM_APP_WAV_DONE     (WM_APP + 27)    // main → GUI: payload GuiWavDone*
+#endif
+#ifndef WM_APP_WAV_FOLDER_STATE
+#define WM_APP_WAV_FOLDER_STATE (WM_APP + 28) // main → GUI: payload GuiWavFolder* (startup --wav-dir)
+#endif
+
 // ---- POD payloads ----
 struct GuiAttrs { int vol_percent; int rate_percent; int pitch_percent; };
 struct GuiDeviceSel { int index; /* -1 = default */ };
 struct GuiServerReq { wchar_t host[64]; int port; int start; };
 struct GuiServerFields { wchar_t host[64]; int port; };
+
+// ---- WAV output payloads ----
+struct GuiSaveWav   { std::wstring path; std::string text_u8; };     // speak text into path
+struct GuiWavFolder { bool enable; wchar_t dir[MAX_PATH]; };          // folder mode on/off
+struct GuiWavDone   { wchar_t path[MAX_PATH]; double seconds; bool ok; bool stopped; bool from_save_button; };
+
+// Default WAV file name stem for a line of text (main.cpp): "attention_security".
+std::wstring nettts_wav_slug(const std::string& line);

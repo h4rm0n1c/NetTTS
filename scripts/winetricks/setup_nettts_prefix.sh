@@ -3,7 +3,7 @@ set -euo pipefail
 
 unset LD_PRELOAD LD_LIBRARY_PATH GTK3_MODULES GTK_MODULES GTK_PATH QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME || true
 
-DEFAULT_NETTTS_URL="https://github.com/h4rm0n1c/NetTTS/releases/download/v1.0/nettts_gui.zip"
+DEFAULT_NETTTS_URL="https://github.com/h4rm0n1c/NetTTS/releases/download/v1.1a/nettts_gui.zip"
 DEFAULT_SAPI_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/spchapi.exe"
 DEFAULT_FLEXTALK_URL="https://github.com/h4rm0n1c/NetTTS/raw/refs/heads/main/third_party/Dependencies/flextalk.zip"
 DEFAULT_SSN_BRIDGE_REF="main"
@@ -495,7 +495,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
         cat >"$CONFIG_FILE" <<EOF
 # NetTTS daemon configuration
 # HOST/PORT define the TCP endpoint for --startserver mode.
-# DEVICE selects the FlexTalk output device index (-1 = default mapper).
+# DEVICE selects the FlexTalk output device index or partial device name (-1 = default mapper).
 # VOX_MODE accepts 'vox', 'voxclean', or 'off'.
 HOST=127.0.0.1
 PORT=5555

@@ -30,11 +30,11 @@ local mirrors.
 - `--wineprefix <path>` – Target prefix to configure (useful if you already have a dedicated prefix elsewhere).
 - `--wineserver <path>` – Alternate `wineserver` binary to use.
 - `--wine-bin <path>` – Alternate `wine` binary to use (handy if you wrap Wine with a script such as `wrun`).
-- `--nettts-url <URL>` – Override the NetTTS download location (defaults to the `v1.0` release zip).
+- `--nettts-url <URL>` – Override the NetTTS download location (defaults to the `v1.1a` release zip).
 - `--sapi-url <URL>` – Override the SAPI runtime download (defaults to the `spchapi.exe` stored in this repo).
 - `--flextalk-url <URL>` – Override the FlexTalk voice archive download (defaults to the `flextalk.zip` stored in this repo).
 
-The script forces `WINEARCH=win32` when the prefix is first created, installs the Windows XP compatibility layer, and pulls in `vcrun6`, `mfc42`, and `riched20` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local paths you supplied), feeds them to Wine, and finally grabs the `v1.0` NetTTS release zip (unless overridden) before copying the extracted executable into `C:\nettts` inside the prefix. FlexTalk ships as a 1997-era InstallShield 5 package, so the helper launches `setup.exe`, waits for you to finish the GUI-driven install, and then proceeds with the remaining steps.
+The script forces `WINEARCH=win32` when the prefix is first created, installs the Windows XP compatibility layer, and pulls in `vcrun6`, `mfc42`, `riched20` and `autohotkey` via winetricks. It then downloads the SAPI 4.0 runtime and FlexTalk installers (or uses the local paths you supplied), feeds them to Wine, and finally grabs the `v1.1a` NetTTS release zip (unless overridden) before copying the extracted executable into `C:\nettts` inside the prefix. FlexTalk ships as a 1997-era InstallShield 5 package; the helper runs its `setup.exe` under an AutoHotKey script (`flextalk_autoinst.ahk`) that clicks through the installer, then carries on with the remaining steps.
 
 All artefacts live under the chosen root directory so they can be versioned or backed up as a single folder.
 
@@ -68,6 +68,6 @@ refreshing the helper scripts.
 
 ### Daemon tips
 
-- Edit `<root>/etc/nettts-daemon.conf` to change the TCP host/port, VOX mode (`vox`, `voxclean`, or `off`), or audio device index. Run `<root>/bin/nettts-daemon.sh show-config` to review the current file.
+- Edit `<root>/etc/nettts-daemon.conf` to change the TCP host/port, VOX mode (`vox`, `voxclean`, or `off`), or audio device. `DEVICE` may be `-1`, a numeric output index, or a case-insensitive partial device name such as `ATR2USB`. Run `<root>/bin/nettts-daemon.sh show-config` to review the current file.
 - `<root>/bin/nettts-daemon.sh start` launches the server headless (`--startserver --headless`) using Wine's `start /b` to avoid popping up a console window and writes runtime logs via the app's built-in logger to `C:\\nettts\\nettts.log`. Use `stop`, `restart`, `status`, or `speak "Hello world"` to manage it.
 - To run in a purely headless environment without an active X server session, install `xvfb` and set `export NETTTS_USE_XVFB=true` before running `nettts-daemon.sh start`.
