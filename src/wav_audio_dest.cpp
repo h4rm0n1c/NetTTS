@@ -105,6 +105,41 @@ HRESULT WavAudioDest::end_file(QWORD* data_bytes) {
     return S_OK;
 }
 
+HRESULT WavAudioDest::begin_buffer() {
+    Lock l(lock_);
+    close_file_locked(nullptr);
+    buffer_.clear();
+    buffer_overflow_ = false;
+    buffering_ = true;
+    return S_OK;
+}
+
+HRESULT WavAudioDest::end_buffer(std::vector<BYTE>& wav) {
+    Lock l(lock_);
+    wav.clear();
+    if (!buffering_) return S_FALSE;
+    buffering_ = false;
+    if (buffer_overflow_) {
+        buffer_.clear();
+        return E_OUTOFMEMORY;
+    }
+    const DWORD fmt_size = (DWORD)format_.size();
+    const DWORD data_size = (DWORD)buffer_.size();
+    const DWORD header_size = sizeof(RiffHeader) + fmt_size + sizeof(DataHeader);
+    RiffHeader rh{{'R','I','F','F'}, header_size + data_size - 8, {'W','A','V','E'}, {'f','m','t',' '}, fmt_size};
+    DataHeader dh{{'d','a','t','a'}, data_size};
+    wav.reserve(header_size + data_size);
+    const BYTE* p = reinterpret_cast<const BYTE*>(&rh);
+    wav.insert(wav.end(), p, p + sizeof(rh));
+    wav.insert(wav.end(), format_.begin(), format_.end());
+    p = reinterpret_cast<const BYTE*>(&dh);
+    wav.insert(wav.end(), p, p + sizeof(dh));
+    wav.insert(wav.end(), buffer_.begin(), buffer_.end());
+    buffer_.clear();
+    buffer_.shrink_to_fit();
+    return S_OK;
+}
+
 bool WavAudioDest::has_file() {
     Lock l(lock_);
     return file_ != INVALID_HANDLE_VALUE;
@@ -241,6 +276,15 @@ STDMETHODIMP WavAudioDest::DataSet(PVOID data, DWORD bytes) {
     if (!data && bytes) return E_POINTER;
     Lock l(lock_);
     stream_bytes_ += bytes;
+    if (buffering_) {
+        if (buffer_overflow_ || buffer_.size() + bytes > kMaxBufferBytes) {
+            buffer_overflow_ = true;                    // too long: fail the render
+            return S_OK;
+        }
+        const BYTE* p = static_cast<const BYTE*>(data);
+        buffer_.insert(buffer_.end(), p, p + bytes);
+        return S_OK;
+    }
     if (file_ == INVALID_HANDLE_VALUE) return S_OK;   // no file open: discard
     HRESULT hr = write_all(data, bytes);
     if (SUCCEEDED(hr)) {

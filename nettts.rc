@@ -4,7 +4,7 @@
 #endif
 
 #define APP_PRODUCT_NAME     "NetTTS"
-#define APP_VERSION_TAG      "1.1a (Multimedia Gold Edition - Open Source - WTFPL License)"
+#define APP_VERSION_TAG      "1.2 (Information Superhighway Edition - Open Source - WTFPL License)"
 #define APP_VERSION_DISPLAY  "Version " APP_VERSION_TAG
 #define APP_AUTHOR_NAME      "h4rm0n1c"
 #define APP_COPYRIGHT_TEXT   "\xa9 " APP_AUTHOR_NAME
@@ -148,10 +148,10 @@ BEGIN
 END
 
 // ---- Version Information (Details tab metadata) ------------------
-// Encode the friendly "1.1a" tag as 1,1,0,0 so the numeric file version stays valid.
+// Encode the friendly "1.2" tag as 1,2,0,0 so the numeric file version stays valid.
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,1,0,0
- PRODUCTVERSION 1,1,0,0
+ FILEVERSION 1,2,0,0
+ PRODUCTVERSION 1,2,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
@@ -175,7 +175,7 @@ BEGIN
             VALUE "OriginalFilename", "nettts_gui.exe\0"
             VALUE "ProductName", APP_PRODUCT_NAME "\0"
             VALUE "ProductVersion", APP_VERSION_TAG "\0"
-            VALUE "SpecialBuild", "Multimedia Gold Edition\0"
+            VALUE "SpecialBuild", "Information Superhighway Edition\0"
             VALUE "SupportURL", APP_REPO_URL "\0"
         END
     END

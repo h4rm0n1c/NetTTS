@@ -27,7 +27,8 @@ What it does:
 
 - Speaks text typed into the window, or sent to it over TCP (e.g. with netcat).
 - Clean, HL VOX LQ and HL VOX HQ prosody modes; volume, rate and pitch sliders.
-- Saves speech as WAV files (new in 1.1a).
+- Saves speech as WAV files (new in 1.1a), or returns it as WAV bytes over
+  HTTP or a plain TCP connection (new in 1.2).
 - A status socket that reports when speech starts and stops, for things like
   ducking music in OBS.
 
@@ -144,6 +145,43 @@ nc 127.0.0.1 5556 | while read -r line; do
   esac
 done
 ```
+
+### Getting WAV bytes back
+
+The TCP server also opens a render port, `5557` by default (`--render-port`,
+the text port + 2; `0` turns it off). Send it text and it sends back a WAV
+file, without playing anything. It speaks plain TCP and HTTP on the same port.
+
+Plain TCP: send one line, read the WAV until the connection closes.
+
+```bash
+printf 'Hello there\n' | nc 127.0.0.1 5557 > hello.wav
+```
+
+HTTP:
+
+```bash
+curl -o hello.wav 'http://127.0.0.1:5557/speak?text=Hello%20there'
+curl -o hello.wav --data-urlencode 'text=Hello there' http://127.0.0.1:5557/speak
+curl -o hello.wav -H 'Content-Type: text/plain' --data-binary 'Hello there' http://127.0.0.1:5557/speak
+```
+
+Errors come back as HTTP status codes with a one-line reason (400 for bad
+input, 413 for text over 4096 bytes, 503 when too many renders are queued).
+A plain TCP client just gets the connection closed.
+
+Renders use the current settings (prosody mode, volume, rate, pitch). They
+queue with everything else NetTTS is saying, and FlexTalk renders much faster
+than real time, so most come back in well under a second. Slash commands are
+spoken as text, not run, so a render client can't `/stop` other speech. Up
+to 8 connections are handled at once, and a connection that sends nothing is
+closed after 5 seconds.
+
+The render port binds to the same host as the text port (127.0.0.1 unless you
+change it). If you open it to your network, anyone who can reach it can make
+NetTTS talk.
+
+### Commands and markup
 
 Lines starting with `/` are commands: `/rate N`, `/pitch N`, `/pause ms` and
 `/stop`. `[[pause 500]]` inside a line inserts a pause. The Help button lists

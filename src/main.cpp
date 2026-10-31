@@ -21,6 +21,7 @@
 #include "gui.hpp"   // create_main_dialog(...)
 #include "help.hpp"  // usage_short(), show_help_and_exit(), print_help()
 #include "wav_audio_dest.hpp"
+#include "render_server.hpp"
 #include <mmsystem.h>   // for --list-devices (WinMM)
 
 #ifndef WM_APP
@@ -38,6 +39,7 @@ static bool         g_headless_noconsole = false; // --headlessnoconsole
 static std::wstring g_host          = L"127.0.0.1";
 static int          g_port          = 5555;
 static int          g_status_port   = -1;    // default: port+1
+static int          g_render_port   = -1;    // default: port+2; 0 = off
 static bool         g_status_port_explicit = false;
 static int          g_dev_index     = -1;
 static int          g_posn_poll_ms  = 0;
@@ -74,12 +76,15 @@ static int          g_next_job   = 1;
 static int          g_open_job   = 0;     // job whose file is open (0 = none)
 static std::wstring g_open_path;
 static bool         g_open_notify_gui = false;
+static RenderRequestPtr g_open_render;    // render job whose audio is being captured
+static int          g_render_pending = 0; // renders accepted and not yet answered
 static int          g_sent       = 0;     // chunks handed to the engine, TextDataDone pending
 
 // Set while enqueue_incoming_text() pushes the chunks of one job.
 static int          g_enqueue_job = 0;
 static std::wstring g_enqueue_path;
 static bool         g_enqueue_notify_gui = false;
+static RenderRequestPtr g_enqueue_render;
 
 static bool wav_mode_wanted(){ return !g_wav_out.empty() || !g_wav_dir.empty(); }
 
@@ -90,6 +95,7 @@ struct Chunk {
     int          job = 0;           // WAV job id (0 = not part of a file job)
     std::wstring wav_path;          // set on the first chunk of a job
     bool         notify_gui = false;
+    RenderRequestPtr render;        // set on the first chunk of a render job
 };
 static std::deque<Chunk> g_q;
 
@@ -105,6 +111,10 @@ static void push_chunk(std::wstring text){
         c.wav_path = g_enqueue_path;
         c.notify_gui = g_enqueue_notify_gui;
         g_enqueue_path.clear();     // only the first chunk opens the file
+    }
+    if (g_enqueue_job && g_enqueue_render){
+        c.render = std::move(g_enqueue_render);   // only the first chunk starts the capture
+        g_enqueue_render.reset();
     }
     g_q.push_back(std::move(c));
 }
@@ -153,19 +163,42 @@ static void notify_wav_result(const std::wstring& path, QWORD bytes, bool ok, bo
     }
 }
 
+// Wake the render client waiting on req (status 200 with wav, or an error).
+static void answer_render(const RenderRequestPtr& req, int status){
+    if (!req) return;
+    req->status = status;
+    if (status != 200) req->wav.clear();
+    if (g_render_pending > 0) g_render_pending--;
+    dprintf("[render] %d (%u bytes)", status, (unsigned)req->wav.size());
+    SetEvent(req->done);
+}
+
 static void finish_open_file(bool stopped){
     if (!g_open_job) return;
-    QWORD bytes = 0;
-    if (g_eng.wav) g_eng.wav->end_file(&bytes);
-    notify_wav_result(g_open_path, bytes, true, stopped, g_open_notify_gui);
+    if (g_open_render){
+        RenderRequestPtr req = std::move(g_open_render);
+        g_open_render.reset();
+        HRESULT hr = g_eng.wav ? g_eng.wav->end_buffer(req->wav) : E_FAIL;
+        answer_render(req, (!stopped && hr == S_OK) ? 200 : 500);
+    } else {
+        QWORD bytes = 0;
+        if (g_eng.wav) g_eng.wav->end_file(&bytes);
+        notify_wav_result(g_open_path, bytes, true, stopped, g_open_notify_gui);
+    }
     g_open_job = 0;
     g_open_path.clear();
     g_open_notify_gui = false;
 }
 
-// Drop the remaining chunks of a job whose file could not be opened.
+// Drop the remaining chunks of a job that could not start.
 static void drop_job(int job){
     while (!g_q.empty() && g_q.front().job == job) g_q.pop_front();
+}
+
+// A job could not start: report it the way its requester expects.
+static void fail_job(const Chunk& c){
+    if (c.render) answer_render(c.render, 500);
+    else notify_wav_result(c.wav_path, 0, false, false, c.notify_gui);
 }
 
 // [[pause 500]]  →  " \!sf50 " and " \!br " boundary
@@ -257,7 +290,7 @@ static bool kick_if_idle(){
         if (g_open_job && c.job != g_open_job) finish_open_file(false);
         if (!ensure_engine(wav_mode_wanted() || c.job != 0)){
             if (c.job){
-                notify_wav_result(c.wav_path, 0, false, false, c.notify_gui);
+                fail_job(c);
                 drop_job(c.job);
                 continue;
             }
@@ -265,15 +298,18 @@ static bool kick_if_idle(){
             continue;
         }
         if (c.job && c.job != g_open_job){
-            HRESULT hr = (g_eng.wav && !c.wav_path.empty()) ? g_eng.wav->begin_file(c.wav_path) : E_FAIL;
+            HRESULT hr = E_FAIL;
+            if (g_eng.wav && c.render) hr = g_eng.wav->begin_buffer();
+            else if (g_eng.wav && !c.wav_path.empty()) hr = g_eng.wav->begin_file(c.wav_path);
             if (FAILED(hr)){
-                notify_wav_result(c.wav_path, 0, false, false, c.notify_gui);
+                fail_job(c);
                 drop_job(c.job);
                 continue;
             }
             g_open_job = c.job;
             g_open_path = c.wav_path;
             g_open_notify_gui = c.notify_gui;
+            g_open_render = c.render;
         }
         break;
     }
@@ -453,6 +489,35 @@ static std::wstring unique_wav_path(const std::wstring& dir, const std::wstring&
 
 std::wstring nettts_wav_slug(const std::string& line){ return wav_slug(line); }
 
+// Queue a render request: like a spoken line, but the audio is captured in
+// memory for the render endpoint. Slash-commands are not interpreted (a
+// remote client must not be able to /stop other speech) and the window's
+// text box is left alone.
+static void enqueue_render(RenderRequestPtr req){
+    if (g_render_pending >= kRenderMaxQueued){
+        req->status = 503;
+        SetEvent(req->done);
+        return;
+    }
+    g_render_pending++;
+    g_enqueue_job = g_next_job++;
+    g_enqueue_render = req;
+    const std::string& line = req->text_u8;
+    if (g_vox_enabled){
+        std::wstring wtag = vox_process(u8_to_w(line), !g_vox_clean);
+        if (!wtag.empty()) push_chunk(std::move(wtag));
+    } else {
+        expand_inline_pauses_and_enqueue(line);
+    }
+    g_enqueue_job = 0;
+    if (g_enqueue_render){            // nothing to speak (e.g. only markup)
+        g_enqueue_render.reset();
+        answer_render(req, 500);
+        return;
+    }
+    kick_if_idle();
+}
+
 // Enqueue one inbound line, applying --vox if enabled. wav_path (optional):
 // speak this line into that file (the GUI's Save as WAV).
 static void enqueue_incoming_text(const std::string& line, const std::wstring& wav_path = L"", bool notify_gui = false){
@@ -588,9 +653,14 @@ case WM_APP_SERVER_REQ: {
             if (ok){
                 ok = status_server_start(g_host, g_status_port);
             }
+            if (ok && g_render_port != 0){
+                int rp = g_render_port > 0 ? g_render_port : g_port + 2;
+                if (!render_server_start(g_host, rp, g_hwnd)) dprintf("[render] could not start on port %d", rp);
+            }
         } else {
             server_stop();
             status_server_stop();
+            render_server_stop();
             ok = true;
         }
         if (HWND dlg = gui_get_main_hwnd()){
@@ -608,8 +678,18 @@ case WM_APP_GET_DEVICE:{
     return (LRESULT)g_dev_index;
 }
 
+case WM_APP_RENDER: {
+    auto* p = (RenderRequestPtr*)l;
+    if (p){
+        enqueue_render(*p);
+        delete p;
+    }
+    return 0;
+}
+
 case WM_APP_STOP: {
     // Hard stop: clear pending queue and reset audio so current utterance halts
+    for (const Chunk& c : g_q) if (c.render) answer_render(c.render, 500);
     while (!g_q.empty()) g_q.pop_front();
     tts_audio_reset(g_eng);               // immediate stop/reset (SAPI4)
     g_eng.inflight.store(0);              // best-effort local reset
@@ -739,6 +819,7 @@ else if (_wcsicmp(argv[i], L"--list-devices") == 0) {
         else if (a==L"--host" && i+1<argc) g_host = argv[++i];
         else if (a==L"--port" && i+1<argc) g_port = _wtoi(argv[++i]);
         else if (a==L"--status-port" && i+1<argc) { g_status_port = _wtoi(argv[++i]); g_status_port_explicit = true; }
+        else if (a==L"--render-port" && i+1<argc) { g_render_port = _wtoi(argv[++i]); }
         else if (a==L"--devnum" && i+1<argc) {
             std::wstring dev = argv[++i];
             if (is_digits(dev)) g_dev_index = _wtoi(dev.c_str());
@@ -849,6 +930,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
                 server_stop();
             }
         }
+        if (started && g_render_port != 0){
+            int rp = g_render_port > 0 ? g_render_port : g_port + 2;
+            if (!render_server_start(g_host, rp, g_hwnd)) dprintf("[render] could not start on port %d", rp);
+        }
     }
     if (show_gui && hDlg){
         PostMessageW(hDlg, WM_APP_SERVER_STATE, started ? 1 : 0, 0);
@@ -875,9 +960,11 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int){
         DispatchMessageW(&msg);
     }
 
+    render_server_stop();
     status_server_stop();
     server_stop();
-    finish_open_file(false);
+    for (const Chunk& c : g_q) if (c.render) answer_render(c.render, 503);
+    finish_open_file(true);
     if (g_eng.wav) g_eng.wav->end_file();   // --wav-out session file
     tts_shutdown(g_eng);
     CoUninitialize();
