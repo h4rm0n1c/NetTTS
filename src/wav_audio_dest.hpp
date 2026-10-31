@@ -14,6 +14,9 @@
 // the final header and closes it. Audio that arrives with no file open is
 // discarded. The engine calls DataSet() from its own thread, so every file
 // operation is serialised by a critical section.
+//
+// Instead of a file, audio can be collected in memory (begin_buffer /
+// end_buffer) for the render endpoint, which sends the WAV over the network.
 class WavAudioDest : public IAudio, public IAudioDest {
 public:
     // path may be empty: no file is open until begin_file().
@@ -24,6 +27,13 @@ public:
     // PCM byte count written to it; S_FALSE if no file was open.
     HRESULT end_file(QWORD* data_bytes = nullptr);
     bool    has_file();
+
+    // Collect audio in memory instead of a file (closes any open file).
+    HRESULT begin_buffer();
+    // Stop collecting; wav receives a complete WAV image (header + PCM).
+    // E_OUTOFMEMORY if the audio exceeded kMaxBufferBytes.
+    HRESULT end_buffer(std::vector<BYTE>& wav);
+    static const size_t kMaxBufferBytes = 64u * 1024u * 1024u;   // ~50 min at 11025 Hz
     DWORD   avg_bytes_per_sec();
 
     STDMETHOD(QueryInterface)(REFIID riid, LPVOID FAR* ppvObj) override;
@@ -64,4 +74,7 @@ private:
     QWORD file_bytes_ = 0;      // PCM bytes in the open file
     QWORD stream_bytes_ = 0;    // all PCM bytes ever received (engine position)
     bool finalized_ = false;
+    bool buffering_ = false;
+    bool buffer_overflow_ = false;
+    std::vector<BYTE> buffer_;
 };
